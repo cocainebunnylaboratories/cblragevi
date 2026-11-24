@@ -224,15 +224,34 @@ impl HostHeap {
     /// `n` consecutive free dynamic slots (view heaps only), taken until
     /// [`HostHeap::release`]: the first's index.
     pub(crate) fn dynamic(&self, n: u32) -> Option<u32> {
-        if self.sampler || n == 0 || n > self.dynamic {
-            return None;
-        }
         let mut guard = self.next.lock().unwrap_or_else(|e| e.into_inner());
         let (next, taken) = &mut *guard;
         let n = n as usize;
         let Some(first) = super::slots::find_free(taken, *next as usize, n) else {
-            static ONCE: std::sync::Once = std::sync::Once::new();
-            ONCE.call_once(|| tracing::warn!(n, "no free dynamic descriptor slots: a table is not made"));
+            #[cfg(feature = "diagnostics")]
+            {
+                use std::sync::atomic::{AtomicU64, Ordering};
+                static FAILURES: AtomicU64 = AtomicU64::new(0);
+                let failures = FAILURES.fetch_add(1, Ordering::Relaxed) + 1;
+                if failures.is_power_of_two() {
+                    let mut free = 0;
+                    let mut largest = 0;
+                    for span in taken.split(|&used| used) {
+                        free += span.len();
+                        largest = largest.max(span.len());
+                    }
+                    tracing::warn!(
+                        failures, requested = n, capacity = self.dynamic, free, largest,
+                        cursor = *next, heap_cpu = self.cpu, sampler = self.sampler,
+                        "dynamic descriptor allocation failed"
+                    );
+                }
+            }
+            #[cfg(not(feature = "diagnostics"))]
+            {
+                static ONCE: std::sync::Once = std::sync::Once::new();
+                ONCE.call_once(|| tracing::warn!(n, "no free dynamic descriptor slots: a table is not made"));
+            }
             return None;
         };
         taken[first..first + n].fill(true);

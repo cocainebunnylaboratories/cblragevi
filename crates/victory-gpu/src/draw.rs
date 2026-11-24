@@ -460,6 +460,10 @@ impl State {
                 if n.is_power_of_two() {
                     tracing::warn!(
                         dropped = n,
+                        shader = ?stage.shader,
+                        pipeline = %p.name,
+                        list = ?list.list.as_raw(),
+                        list_tables = self.dynamic.len(),
                         "a draw or dispatch dropped: no dynamic slots for its tables"
                     );
                 }
@@ -1012,6 +1016,8 @@ impl State {
         }
         self.host_pipeline = 0;
         self.host_roots[1] = 0;
+        // Preparation may return before bind() attempts any new tables.
+        self.table_failed = false;
         let ran = match kind {
             DRAW | INDEXED => self.topology != RECTANGLES && self.prepare(list, kind == INDEXED),
             MESH => self.prepare_for(list, false, true),
@@ -1025,6 +1031,7 @@ impl State {
             crate::indirect::done(list, &args.buffer);
             #[cfg(feature = "diagnostics")]
             match crate::pipeline::host_pipeline(self.pipeline as This) {
+                _ if self.table_failed => why("dynamic descriptor table allocation failed"),
                 None => crate::pipeline::note_drop(self.pipeline as This),
                 Some(p) => why(&format!("prepare failed (compute {}, mesh {})", p.compute, p.mesh)),
             }
