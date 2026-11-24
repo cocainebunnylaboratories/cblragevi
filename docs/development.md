@@ -6,6 +6,15 @@ Run the following commands in PowerShell from the repository root. Build the dia
 cargo build --profile diag -p victory --features diagnostics
 ```
 
+After an upstream sync, record the source revision and inspect the effective paths before comparing logs. The merged CLI displays the title data directory and checks it against the asset policy alongside the cache and game paths.
+
+```powershell
+git rev-parse HEAD
+.\target\diag\victory.exe config
+```
+
+For first-mission testing, use the WARP baseline and numbered-frame capture instructions in the [first-mission rendering guide](cbl/first-mission-rendering.md). Keep a separate log for each revision and adapter so a later run preserves the original evidence.
+
 ## Capture the hardware run
 
 Replace the example path with the executable in your game directory. VIctory writes the startup summary to stdout and tracing to stderr. The pipeline combines both streams, displays them in the terminal, and saves them to `%TEMP%\victory-diag.log`. Each run overwrites that file.

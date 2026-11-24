@@ -2,7 +2,21 @@
 
 The first milestone is recognizable 3D world geometry in the **presented image** during the opening mission, across several successive frames. A populated depth buffer is a useful intermediate result. Working subtitles, a higher draw count, or successful shader compilation alone cannot establish that the scene is visible.
 
-## Starting evidence
+## November 25 upstream review
+
+Fork merge `b934ecf` incorporates upstream `ffe310e` on top of the previous fork revision `39205c2`. The fork's allocator fix, regression tests and descriptor failure logging are present. The measurements below came from the November 24 hardware run. A post-merge mission capture is still outstanding. [Upstream shader change](https://github.com/Marvisak/VIctory/commit/ffe310eb2098e52169f4c44db5ffdabf43a72622)
+
+| Change in the merged code | Consequence for this investigation |
+| --- | --- |
+| Shader translation now recognizes more loops in which active lanes select different descriptors, including table offsets selected from the first active lane and descriptors chosen across control-flow joins. Upstream reports that 108 programs advanced to a later refusal in its census. | Collect fresh drop reasons and stage/hash pairs. A shader that gets past one unsupported operation can still fail later. The upstream census counts programs, while our log counts dropped work per frame. |
+| CPU-written source textures are uploaded before whole-resource and region copies. Null vertex-view arrays clear their requested slots. | If a captured pass reads a blank texture, inspect its source upload and copy destination before changing the shader. For a vertex draw that loses geometry, check the bound streams at that draw. Mesh dispatches use a separate preparation path. |
+| Target dumping changed for format 11 (16-bit UNORM channels) and format 89 (packed 10:10:10:2). Buffer UAV diagnostics now print the buffer range where available. | Recapture affected targets on the merged build before interpreting a dark thumbnail. Match the UAV range written by a compute producer to the range consumed by a later draw within the same run. A previously logged `uav None` could represent a valid buffer view. |
+
+**Local offline check.** On the merged source, we matched the historical containers by hash in the shader archive and BVH builder DLL and called `victory_shader::emit::translate` on each in memory. All three returned their previous errors. The two BVH shaders failed scalar-register address resolution at `0x40` and `0x30`. The archive shader reported an unknown structured-buffer stride at `0x61c`. This reproduces translator behavior independently of the GPU. Their current draw counts and contribution to the missing image still require a live frame.
+
+**Next run.** Rebuild the merged diagnostic executable, take a WARP baseline at the same mission dialogue, then capture depth, scene color and the presented image for several adjacent presents. Compare WARP runs with WARP runs. Use the November 24 RTX log to identify candidate failures. Choose the first failing producer visible in the new capture before assigning shader or allocator work. Keep the BVH work conditional on finding a missing pass that consumes its output.
+
+## November 24 hardware evidence
 
 The November 24, 2026 Windows diagnostic run used a Ryzen 9 9950X3D and an Aorus Master RTX 5080. Player confirmation, the intro, display and accessibility settings, loading, and mission subtitles all worked. The scene behind the subtitles remained dark. The operator closed the application. The executable's source revision and driver version were not recorded with that run.
 
@@ -11,7 +25,7 @@ The November 24, 2026 Windows diagnostic run used a Ryzen 9 9950X3D and an Aorus
 | One late reporting interval showed 0.2 fps, 5,457 ms/frame, 1,867 draws/frame, 2,088 dropped and zero host pipelines being built at the time of the report. | World work was still running. Separate missing work from slow work. This interval is a sample, not an average for the mission. |
 | The highest reported reason was 570 indirect kind 10 preparation failures/frame with a mesh pipeline. Kind 0 preparation failures accounted for another 256/frame. | Kind 10 is a mesh dispatch. The indirect arguments and signature passed several checks before preparation failed. Trace which preparation branch failed. |
 | The warning for failed dynamic descriptor tables reached 4,096 drops cumulatively. | Identify the heap, size and owning command lists. This counter spans the run. Its overlap with the 570/frame category is unknown. |
-| Two compute shaders accounted for 234 and 201 drops/frame. Both translations failed while resolving a scalar-register address to a root parameter. A third accounted for 209/frame and failed on an unknown structured-buffer stride. | Join the stage and hash from the ranked drop report to the earlier translation warning in the local log. Trace these three programs first if they produce inputs needed by the missing pass. |
+| Two compute shaders accounted for 234 and 201 drops/frame. Both translations failed while resolving a scalar-register address to a root parameter. A third accounted for 209/frame and failed on an unknown structured-buffer stride. | Join the stage and hash from the ranked drop report to the earlier translation warning in the local log. Re-rank them using a merged-build mission frame and identify the consumer before prioritizing a fix. |
 
 The drop counters come from different paths and sampling intervals. Keep their labels and denominators when comparing runs. The first pass responsible for the dark scene is still unknown. [Frame reporting](../../crates/victory-gpu/src/host.rs) · [Indirect operations and table binding](../../crates/victory-gpu/src/draw.rs)
 
@@ -45,6 +59,7 @@ Close the title after the checkpoint. Extract the relevant records with context 
 ```powershell
 Select-String -Path "$run\boot.log" -Context 0,3 -Pattern @(
     'ms/frame', 'without a host pipeline', 'slots for its tables',
+    'dynamic descriptor allocation failed', 'dynamic descriptor table allocation failed',
     'shader does not translate', 'black frame after', 'device removed'
 ) | Out-File -Width 300 "$run\summary.txt"
 ```
@@ -83,7 +98,7 @@ Compare the presented PNG to the end-of-frame target PNGs. Use dimensions, forma
 - [ ] Follow kind 10 through `State::execute_indirect`'s dispatch logic (search for `const MESH`), `prepare_for`, `bind`, `tables` and `HostHeap::dynamic`. Distinguish a pending or refused pipeline, pipeline kind mismatch, failed table creation and argument-clamp failure. The existing generic preparation message rechecks pipeline readiness after the failed attempt.
 - [ ] On a failed allocation, collect table size, effective dynamic capacity, total free slots, largest physically contiguous free span, search cursor, heap identity, stage, pipeline identifier, command list and present number. Aggregate repeated failures by reason over the same interval as the frame report. Keep the scan for free-space diagnostics off the successful hot path.
 - [ ] Log which heap creation branch actually ran. The code tries a larger dynamic range, a smaller range, then a capped view heap in some cases. Check which title-visible slots remain addressable. The model of GPU alone cannot identify the selected branch.
-- [ ] If the largest span can satisfy the request, test next-fit search around the cursor with a synthetic bitmap. Include a free span that crosses the cursor inside the allocation but stays within physical bounds. If total free space suffices but no single span does, measure fragmentation. If total free space is too small, count outstanding reservations per list and follow release through reset, replay and destruction.
+- [ ] If the merged build rejects a valid request despite a sufficient contiguous span, reproduce the newly observed heap state alongside the existing cursor regression. If total free space suffices but no single span does, measure fragmentation. If total free space is too small, count outstanding reservations per list and follow release through reset, replay and destruction.
 - [ ] Verify that cached tables are reused only while their descriptors and backing resources remain valid. Preserve ownership until GPU use completes. Keep the existing failed-bind guard during experiments.
 - [ ] Run the allocator tests and add the smallest synthetic regression that fails before the proposed change. In the matched scene compare table failures, indirect mesh preparations, actual host work and target contents. A successful allocation must also produce the expected descriptor contents. [Heap implementation and tests](../../crates/victory-gpu/src/descriptor/host.rs) · [Command-list state](../../crates/victory-gpu/src/list.rs)
 
