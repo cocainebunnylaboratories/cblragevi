@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined')]
     [string] $PerfCase
 )
 
@@ -34,8 +34,21 @@ if ($PSBoundParameters.ContainsKey('SaveLocation')) {
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 
 $exe = '.\target\diag\victory.exe'
+$candidate = switch ($PerfCase) {
+    'ParallelCompare' { 'parallel-compare' }
+    'StagedReadback'  { 'staged-readback' }
+    'Combined'        { 'combined' }
+}
+if ($candidate) {
+    $candidateDir = Join-Path '.\target\diag\examples\fps-candidates' $candidate
+    $exe = Join-Path $candidateDir 'victory.exe'
+    $binaryRevision = Get-Content -LiteralPath (Join-Path $candidateDir 'source.txt') -TotalCount 1
+    if ($binaryRevision -notmatch '^[0-9a-f]{40}$') {
+        throw "Invalid candidate revision in $candidateDir\source.txt"
+    }
+}
 if (!(Test-Path -LiteralPath $exe -PathType Leaf)) {
-    throw 'Build the diagnostic executable first with cargo build --profile diag -p victory --features diagnostics.'
+    throw "Missing diagnostic executable $exe. See docs/cbl/10fps-trials.md for build instructions."
 }
 
 if ($PSBoundParameters.ContainsKey('SaveLocation')) {
@@ -76,7 +89,11 @@ $prefix = 'rtx5080'
 if ($Mode -eq 'Depth') { $prefix = 'prison-depth' }
 if ($PerfCase) {
     $prefix = 'fps-' + $PerfCase.ToLowerInvariant()
-    $env:VICTORY_CARD_FETCH_INFLIGHT = '0'
+    $env:VICTORY_CARD_FETCH_INFLIGHT = if ($PerfCase -in 'StagedReadback', 'Combined') { '1' } else { '0' }
+    if ($env:VICTORY_CARD_FETCH_INFLIGHT -eq '1') {
+        # Use the donor's default staging size and per-flight cap for both experiments.
+        Remove-Item Env:VICTORY_CARD_FETCH_INFLIGHT_MB, Env:VICTORY_CARD_FETCH_INFLIGHT_MAX_KB -ErrorAction SilentlyContinue
+    }
     $env:VICTORY_CARD_REHASH_RUNS = if ($PerfCase -eq 'BatchRehash') { '1' } else { '0' }
 }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
@@ -92,6 +109,8 @@ if ($PerfCase) {
     @(
         "case=$PerfCase"
         "save=$($source.FullName)"
+        "binary_path=$exe"
+        if ($candidate) { "binary_revision=$binaryRevision" }
         "binary_sha256=$((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash)"
         "VICTORY_CARD_REHASH_RUNS=$env:VICTORY_CARD_REHASH_RUNS"
         "VICTORY_CARD_FETCH_INFLIGHT=$env:VICTORY_CARD_FETCH_INFLIGHT"
