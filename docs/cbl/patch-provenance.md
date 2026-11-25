@@ -36,6 +36,8 @@ The renderer is based on Marvisak's VIctory and the work of its contributors. fx
 
 ## Additional references
 
+- **fxceless** integrated the cheaper descriptor fingerprint and draw-table filtering in [`9376fd6`](https://github.com/fxceless/victory-fork/commit/9376fd60c0ba0e76a74c39b49b1407dbac0a64c7), with a Claude Fable 5.2 co-author trailer. **Jonirulah** authored [PR #670](https://github.com/fxceless/victory-fork/pull/670) for the write-watch change and [PR #648](https://github.com/fxceless/victory-fork/pull/648) for in-flight copy-back fetches. The latter stays opt-in.
+
 - **Zettrox**, with a Claude co-author trailer, added the README and play launcher in [`90b529f`](https://github.com/Zettrox/ztrx/commit/90b529f878a470fec9bf07b7be316bc769a12232). Its parent `2119b0e` is already carried here. Credit Zettrox for any launcher adaptation and cite the [RTX 3050 run](https://github.com/Zettrox/ztrx#ztrx) separately as test evidence.
 - **beamdotdev** authored the [wave64 split proposal](https://github.com/Marvisak/VIctory/pull/1890). If a downstream port is selected, record that port's author and revision alongside the original PR.
 

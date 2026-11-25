@@ -2,7 +2,17 @@
 
 The fxceless stage is integrated at `433782f` on `integrate-fxceless-memory`. The remaining donor stages are deferred. The rendering baseline was `1bc0760`, with fxceless parent `c96b4f2`. The first acceptance target is opaque room geometry in the prison. The hallway, exterior and cashier are progressively broader checks. See [rendering evidence and checkpoints](next-renderer-work.md).
 
-## First hardware check
+## Current hardware check
+
+The follow-up branch `integrate-fxceless-descriptor-perf` carries fxceless `9376fd6`, one commit beyond the visual baseline below. It replaces BLAKE3 in descriptor change detection with a cheaper fingerprint, leaves recently used draw-table slots to those draws, and skips write-watch calls for memory handled by the view guards. The fork reports the heap pass falling from 70–220 ms to about 3 ms on its machine. Its whole frame still took 250–380 ms in the reported RTX 4070 run.
+
+1. Start with `prison-v1` using the [save launcher](save-checkpoints.md). Match the entry and 90-second ceiling shots and the hallway angle in `post-patch-001`. Confirm those surfaces still render and record the matching diagnostic run path.
+2. Run `later-v2` separately. Record where Continue resumes, then capture a stationary exterior view and one small camera turn. Note missing surfaces, blocky patches or changes after waiting. The later save's exact reload location remains unverified.
+3. Compare the descriptor sync timing, frame time and appearance with the same camera wherever possible. Keep `VICTORY_CARD_FETCH_INFLIGHT` and `VICTORY_HEAP_SYNC_TABLES` unset for this pass. The first is an optional copy-back experiment. The second restores mirroring of recently used table slots and is useful as a focused check if a surface regresses.
+
+The screenshot-era executable is archived at `target/diag/examples/fxceless-a26859f-visual-baseline/victory.exe`.
+
+## Earlier fxceless baseline
 
 The merge includes three fxceless commits ending at `a26859f`. Windows built `target/diag/victory.exe` with `cargo build --locked --offline --profile diag -p victory --features diagnostics`. The previous diagnostic executable is archived at `target/diag/examples/fxceless-memory-baseline/victory.exe`. In the one shader conflict, the donor's descriptor-as-data path covers the PR #81 image-size case. The local regression test is retained. The policy hook and staged whitespace check passed. Gameplay and the test suite have not been run on the candidate.
 
