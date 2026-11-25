@@ -34,6 +34,17 @@ struct Clock {
 
 static CLOCK: Mutex<Option<Clock>> = Mutex::new(None);
 static FRAME: AtomicU64 = AtomicU64::new(0);
+static RUN_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Mark the start of the run command, including loading before the first present.
+pub fn start_run_clock() {
+    RUN_START.get_or_init(Instant::now);
+}
+
+#[cfg(windows)]
+pub(crate) fn run_seconds() -> u64 {
+    RUN_START.get_or_init(Instant::now).elapsed().as_secs() / 5 * 5
+}
 
 fn clock() -> std::sync::MutexGuard<'static, Option<Clock>> {
     CLOCK.lock().unwrap_or_else(|e| e.into_inner())

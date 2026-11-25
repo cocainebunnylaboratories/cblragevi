@@ -17,6 +17,7 @@ pub fn run(
     use victory_loader::{BindReport, UnimplementedPolicy, WithTitleDlls};
 
     // A title that relaunched itself: the old process must be gone first.
+    victory_hle::start_run_clock();
     victory_hle::modules::lifecycle::wait_for_previous();
     let cfg = victory_core::Config::load()?;
     let original = std::fs::read(exe).with_context(|| format!("reading {}", exe.display()))?;
