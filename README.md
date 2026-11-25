@@ -1,26 +1,29 @@
 # CBL VIctory
 
-CBL VIctory runs an Xbox Series title on Windows. The title’s x86-64 code runs on the host CPU, and VIctory translates its graphics commands and shaders for Direct3D 12. We build on Marvisak’s VIctory and fxceless’s renderer.
+CBL VIctory is a Windows compatibility layer based on Marvisak’s VIctory and fxceless’s renderer. The title’s x86-64 code runs directly on the CPU. VIctory provides the console services it expects and translates its graphics commands and shaders for Direct3D 12. This fork works on getting the scene drawn correctly and reducing the time each frame takes. [Architecture](docs/architecture.md)
 
-We started by trying to get the ceiling back in the first room. We can now walk through that room and reach later scenes, but streaming into a new area can still take more than a second per frame. We replay the same checkpoint to see which changes help, and measure the CPU and GPU work separately when a frame gets slower. [Test results and replay instructions](results.md) · [Patch authors and sources](docs/cbl/patch-provenance.md)
+## Project status
 
-## Local status · 26 November 2026
+As of 26 November 2026, the opening interior renders with characters, walls, furnishings and working ceiling lights. The player can move through the hallways, reach a later exterior and resume from an early autosave. Some surfaces disappear in later scenes, shadowed characters lose detail and bright surfaces clip. Streaming into a new area can take more than a second per frame.
 
-Tested on Windows with a Ryzen 9 9950X3D and a GeForce RTX 5080 AORUS Master, using the Series X profile.
+## Renderer changes
 
-| Area | Observation on the RTX 5080 |
+- **Texture streaming.** CBL’s upload scheduler sorts only the slots a pass can serve. It preserves retry priority and alternates between recent and older writes. PastiiJay’s overflow recovery refreshes texture views when remap records are lost, and myokex’s smaller-mip handling allows partially resident textures to be read. [Implementation credits](docs/cbl/patch-provenance.md)
+- **Graphics and memory.** The renderer incorporates fxceless’s frame scheduling and driver diagnostics, tightfall’s parallel buffer comparison submitted by pug205gti6, and shader and pipeline-library fixes carried by KLBF Lab. LooperSalty’s AnyXboxX stack supplied davutsimsekk’s BC7 dictionary fix and Jordan N’s half-float rounding fix. The provenance record credits the original implementations and downstream ports. [Patch history](docs/cbl/patch-provenance.md)
+- **Diagnostics.** Checkpoint replays record the executable hash and run settings. The diagnostic window shows output resolution, uptime, FPS, draws per frame and p95 frame time. The log records successful presents and elapsed time so a moving route and a stationary view can be measured independently. [Run and measurement guide](results.md)
+
+## Test results
+
+The following measurements come from one Windows system with a Ryzen 9 9950X3D and GeForce RTX 5080 AORUS Master. The Series X profile produced a 3840×2160 swap chain fitted to a 2560×1440 window. Internal rendering resolution can vary by pass.
+
+| Measurement | Result |
 | --- | --- |
-| Progress | We could move around the first room, follow the hallways and reach a later exterior checkpoint. We can also reload the early autosave and repeat the route. |
-| Picture | The fixed interior view shows the ceiling, fluorescent lights, beds, walls and people. The doorway character is deeply shaded, bright surfaces clip, and other viewpoints show missing or distorted surfaces. |
-| Speed | At 6,900–7,200 draws/frame, the median **logged interval mean** was 223.75 ms on the serial build and 209.70 ms with tightfall’s parallel buffer comparison. One run per build, 22 and 27 qualifying intervals respectively. Camera coverage differs. A walking-route average on the newest build is pending. |
-| Resolution | Series X profile, 3840×2160 swap-chain output fitted to a 2560×1440 window on the control run. Internal resolution can vary by pass. |
-| Stability | The serial control logged 21 min 30 s from startup through manual close, including loading. The runtime timed out waiting for suspension at shutdown. The latest integration still needs a timed playthrough. |
+| Gameplay at 6,900–7,200 draws/frame | The typical logged interval averaged 223.75 ms/frame with serial buffer comparison and 209.70 ms/frame with parallel comparison. These are medians from one run per build, with 22 and 27 qualifying intervals. The camera views differed. |
+| GPU buffer comparison, 192 pieces | 406.55 µs serial and 11.05 µs parallel in a paired GPU timestamp benchmark. |
+| CPU selection of 4,096 uploads from 32,768 eligible slots | 716 µs before and 275 µs after bounded selection. Its effect on gameplay frame time is under test. |
+| Observed session | 21 min 30 s from startup through manual close, including loading. Suspension timed out during shutdown. A timed playthrough of the latest integration is pending. |
 
-The GPU microbenchmark ran serial and parallel shaders in the same process. A 192-piece buffer compare took 406.55 µs and 11.05 µs respectively. Separately, CBL’s CPU change sorts just the texture descriptors eligible for the next upload pass. At a backlog of 32,768 slots and a budget of 4,096, selection fell from 716 to 275 µs on the 9950X3D. The effect on end-to-end frame time is still under test. [Measurement details](results.md)
-
-The integration carries fxceless’s frame scheduling, GPU timing and driver diagnostics, tightfall’s card compare submitted by pug205gti6, and selected KLBF texture, shader and pipeline-library fixes. PastiiJay’s remap-overflow recovery makes placed textures eligible for refresh after invalidation records overflow. The smaller-mip fix originated with myokex, the interpolation fix with uiliannn, and the empty pipeline-library fix with gmankab and AugustoZFJ. The diagnostic window shows run uptime, recent FPS and the 95th-percentile frame interval. [Integration notes and provenance](docs/cbl/patch-provenance.md)
-
-The integration also carries davutsimsekk’s BC7 dictionary repair and Jordan N’s rectangle half-float rounding fix from LooperSalty’s AnyXboxX runtime stack. Both have targeted regression tests. [Donor runtime](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3)
+The results page records the build identities, selection criteria, visual faults and procedure for repeating the test. [Results and reproduction steps](results.md)
 
 ## Inherited project documentation
 
