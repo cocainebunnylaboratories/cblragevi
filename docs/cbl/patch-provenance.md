@@ -4,6 +4,8 @@ The renderer is based on Marvisak's VIctory and the work of its contributors. fx
 
 ## Carried in the local baseline
 
+The local performance branches are recorded separately in the [10 FPS experiment guide](10fps-trials.md). Parallel compare is **tightfall**'s change submitted by **pug205gti6** in PR #518, with the original Claude Opus 5.5 trailer. Staged readback is **Jonirulah**'s second commit on PR #648. The original author and source commit survive in each cherry-pick. Local integration, the paired hardware benchmark and the trial launcher are credited to this fork. [Compare source](https://github.com/fxceless/victory-fork/commit/3c3ce86732d7d0b1a9c2aa88fe3728e3042a051e) · [Readback source](https://github.com/fxceless/victory-fork/commit/4d28486528d239800a79766ee6c2f9f348dca4b5)
+
 | Change | Credit and source | Local integration |
 | --- | --- | --- |
 | Descriptor used only as data | **undeadhuman37**, [fxceless PR #81](https://github.com/fxceless/victory-fork/pull/81). The cherry-pick records source `6236d5785a9751395bb8df737cc89083ab9e2468` and a Claude Sonnet 5.5 co-author trailer. | Local `c4e7737`. The merge at `1bc0760` preserves the descriptor handling alongside newer translator changes. |

@@ -1,5 +1,7 @@
 # RTX 5080 and 9950X3D frame-time investigation
 
+The [10 FPS experiment guide](10fps-trials.md) has the built candidates, RTX 5080 shader timings and next prison test.
+
 ## Local measurements on 25 November 2026
 
 Two diagnostic runs record revision `2c73137` (fxceless `9376fd6`). In `target/diag/examples/rtx5080-20261125-185200-632/boot.log`, 33 of 54 periodic FPS summaries reached 3,000 draws/frame. Values below are medians of those 33 window averages, each weighted equally. The threshold selects busy rendering. Camera, checkpoint and streaming state were uncontrolled. The shorter `185732-799` run has only three windows in this band.
