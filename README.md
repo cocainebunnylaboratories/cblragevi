@@ -14,7 +14,7 @@ As of 26 November 2026, the opening interior renders with characters, walls, fur
 
 ## Test results
 
-On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. The integrated build averaged **5.53 FPS** in a stationary doorway view and **5.25 FPS** over the first 255 measured seconds after movement began. The player character can darken during movement and recover detail after standing still. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
+On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. The integrated build averaged **5.58 FPS** over 326 measured seconds on the route before the menu pause and **5.95 FPS** over 36 seconds in the cashier scene. The counter and surrounding surfaces render more clearly in the latest capture, with clipping and block artifacts still visible. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
 
 ## Inherited project documentation
 

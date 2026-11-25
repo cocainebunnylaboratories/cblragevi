@@ -16,7 +16,7 @@
 
 These figures use the **closed logs** for `fps-baseline-20261126-002130-429` and `fps-parallelcompare-20261125-232204-549`. In each, start at the first four consecutive summaries with at least 6,800 draws/frame and keep summaries with 6,900–7,200 draws/frame. Each summary describes a recent interval. This draw-count filter can admit other views. In the two minutes centred on each screenshot, only one serial summary and ten parallel summaries meet the filter. One run per build and unequal camera coverage limit attribution. Whole-route mean FPS and a full-session low percentile remain unmeasured on these builds.
 
-**Stability.** The serial session logged 21 min 30 s from startup to close, including loading. The log records a manual window close and a one-second suspend timeout before exit. We have yet to establish 30 minutes of active play on the integrated build.
+**Stability.** The serial session logged 21 min 30 s from startup to close, including loading and a one-second suspend timeout after manual close. The integrated session reached the cashier and then crashed after about 20 min 11 s of uptime.
 
 ### Integrated build, opening interior
 
@@ -26,12 +26,18 @@ Run `fps-tracker-20261126-005756-514`, binary `cbaef90`. Control began at 150–
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Stationary doorway, 180–360 s | 34 | 173.698 s | 960 | 5.527 | 304.9 ms |
 | First movement sample, 380–415 s | 6 | 30.465 s | 153 | 5.022 | 359.8 ms |
+| Route before first menu pause, 380–709 s | 64 | 325.974 s | 1,819 | 5.580 | 627.1 ms |
+| Cashier, 1000–1040 s | 7 | 35.823 s | 213 | 5.946 | 271.0 ms |
 
 All included windows reported 3840×2160 output and zero skipped presents. These segments cover the start of the session only.
 
 **Blocky character edges in motion.** The hallway capture at 01:05:29 Sydney time shows rectangular orange patches beside the player's sleeve and arm. The 180 s doorway capture also has a stepped shoulder edge. The window ending at 453.566 s spans the hallway capture and records 30 presents over 5.067 s at 3840×2160, with zero skipped. Nearby usual frames spent 5.1 ms refreshing textures and 0.0 ms waiting for pipelines. At 01:05:32 the renderer detected a texture change four frames after upload and refreshed slot 107442. The log does not associate that slot or any refused compute pass with the affected pixels. Compare the character silhouette in the scene-colour buffer before temporal processing with the final output to localize the first pass showing the blocks.
 
 During normal movement the user also saw the character become almost black. After holding still for about 5–10 seconds, the character rendered correctly again. The observed recovery makes temporal reconstruction and delayed material refresh worth comparing. The current log cannot identify which pass first loses the character detail.
+
+**Cashier.** The 925 s and 1035 s captures show much more of the room than the earlier cashier repro. Camera angle and animation differ, so this is a visual observation across runs. The later shot shows the booth, signs, fixtures and parts of the floor, with large blocks and clipped highlights still visible. The 1175 s close-up also shows the block pattern around the character's shoulder and on the background. The 925 s caption's 377.3 ms/frame summary includes 74.6 ms of CPU copy preparation and 24.5 ms preparing textures. Around the 1035 s capture a usual frame took 166 ms, with 156 ms spent inside render-thread submit calls and around 46 ms of GPU idle time. These counters overlap.
+
+**Crash at 01:18:07 Sydney time.** The replay's `crashes.log` records a CPU access violation (`0xc0000005`) reading `0xffffffffffffffff` during a streamed scene transition after the cashier interaction. The last complete window ended at 1207.410 s. Near the crash the runtime reported 12,806 MB of video memory in use against a 14,219 MB budget, and system free physical memory briefly fell to 774 MB. The log contains no DXGI device removal or commit-limit error. Memory pressure is a lead, and the source of the invalid pointer remains open. The replay's story autosave still has its prior version. A stock `Tracker` replay of the transition can establish whether the fault reproduces before testing draw windows.
 
 ### Reproducible component measurements
 
@@ -87,7 +93,14 @@ git rev-parse HEAD | Set-Content -Encoding Ascii (Join-Path $dest 'source.txt')
 
 ### What would justify the next performance change?
 
+The user marked the first menu pause at about 715 s. Draws already fell to 86/frame in the window ending at 713.231 s, followed by about 95/frame through 809 s. The pre-menu route uses complete windows inside 380–709 s. The next native trial pairs `TrackerWindows` with `Tracker` on the same executable, save and route. Only `VICTORY_INDIRECT_WINDOW` changes. Start with the three-minute doorway hold, then compare the same moving route and check for missing draws or driver-watch fallback. Raising the route average from 5.58 to 7.58 FPS requires lowering average frame time by about 47 ms. If draw windows save less, the render-thread submission cost and GPU idle time make async submission the next single-switch experiment.
+
 - **CPU queue selection.** Use `Community` (`1bc46eb`) and `TextureQueue` (`bf655cf`) with the same save. Alternate run order and repeat each at least twice. Inspect world-entry texture preparation as well as steady frame time. The latest `Tracker` build includes additional correctness fixes.
 - **Expensive movement through the world.** Compare texture refresh, MB uploaded, waiting for stable memory, dropped pipelines and host GPU-list times before and during a stall. The final baseline shows a large texture cost in a view with fewer draws. A streaming fix could improve the worst frames without moving the doorway median.
-- **Draw submission.** Try `DrawWindows` against `Community` on their shared executable. Only the indirect-window switch changes between those cases. Inspect retained geometry, driver-watch messages, draws/frame and frame time. The original 4070 donor measured two switches together. A sustained 10 rendered FPS here requires **100 ms/frame**, about 110 ms below the measured parallel median.
-- **Tracker submission.** Once this file is public, open an addition request with the renamed repository URL and a commit-pinned link to this file. Give the hardware, profile, scene reached, measured in-play average, observed faults, active duration and end condition. A partial result can be reported with its limits and updated after another run.
+- **Draw submission.** The original 4070 donor measured two switches together. A sustained 10 rendered FPS requires **100 ms/frame**, about 79 ms below the current moving-route mean. [fxceless measurements](https://github.com/fxceless/victory-fork/blob/0b0074e/README.md)
+- **Tracker submission.** Open an addition request with the public repository URL and a commit-pinned link to [results.md](../../results.md). Give the hardware, profile, scene reached, measured in-play average, observed faults, active duration and end condition.
+
+### Donor update
+
+- KLBF Lab stable `37ad2d2` and beta `1be1d38` report completing the water mission and making a manual save in an approximately 77-minute Lab 39 test. The beta implementation is still `67ee19c`. [Stable report](https://github.com/PastiiJay/klbf-lab/blob/37ad2d2/README.md) · [Beta report](https://github.com/PastiiJay/klbf-lab-beta/blob/1be1d38/README.md)
+- AnyXboxX moved to `198cf0b` with documentation and test updates. Its VIctory submodule remains `80d58f8`. LooperSalty’s separate runtime tip `d2a4bae` fixes duplicate test module names. fxceless and ztrx remain at their reviewed revisions. [AnyXboxX update](https://github.com/LooperSalty/AnyXboxX/commit/198cf0b) · [Runtime test fix](https://github.com/LooperSalty/victory/commit/d2a4bae)
