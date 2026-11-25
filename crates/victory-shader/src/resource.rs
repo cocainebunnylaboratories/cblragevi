@@ -2267,7 +2267,7 @@ pub(crate) mod tests {
         0xBF81_0000, // s_endpgm
     ];
 
-    /// The console compiler's waterfall (Grand Theft Auto VI's ray-tracing
+    /// The console compiler's waterfall (the title's ray-tracing
     /// resolve and others): each lane holds its entry's byte offset in the
     /// table at s0 (v7 = (lane & 1) * 32); the loop reads the first active
     /// lane's offset, narrows EXEC to the lanes with the same one

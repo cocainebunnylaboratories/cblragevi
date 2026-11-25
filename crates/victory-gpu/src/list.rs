@@ -32,7 +32,7 @@ const ALLOCATOR_IIDS: [Iid; 4] = [
 
 /// The list interfaces up to `ID3D12GraphicsCommandList6` (the table has
 /// all their slots): those whose ids are the same as on PC, the console's
-/// own List5 and List6 (Grand Theft Auto VI asks for List6), then the
+/// own List5 and List6 (the title asks for List6), then the
 /// device child's.
 const LIST_IIDS: [Iid; 10] = [
     guid(
@@ -106,7 +106,7 @@ struct List {
     graphics_root_headers: [u32; 128],
     compute_root_headers: [u32; 128],
     pipeline_shadow: [u32; 8],
-    /// Newer titles' lists are larger: Grand Theft Auto VI's state flush
+    /// Newer titles' lists are larger: the title's state flush
     /// (title+0x32786) copies a pipeline's 32 bytes to +0x544..+0x564 and
     /// tests +0x548, so its layout runs past 0x560. Its size is unknown;
     /// this keeps our fields clear of whatever the title writes there.
@@ -882,7 +882,7 @@ extern "system" fn reset_x(this: This, allocator: This, pipeline: This, _flags: 
 
 /// Newer lists' 0x4a0 `(size, alignment) -> pointer`: memory the list
 /// owns until it is reset, which the CPU writes and the GPU reads at the
-/// same address; null on failure. Grand Theft Auto VI's BVH builder puts
+/// same address; null on failure. The title's BVH builder puts
 /// its instance descriptions there (and wrote through our old
 /// `E_NOTIMPL` as a pointer).
 extern "system" fn allocate_upload(this: This, size: u64, alignment: u64) -> *mut u8 {
@@ -1141,7 +1141,7 @@ extern "system" fn draw(_: This) {
 }
 
 /// `ExecuteIndirect(signature, max count, arguments, offset, count buffer,
-/// offset)`. Grand Theft Auto VI's signatures (title+0x2479466, 2026-11-24)
+/// offset)`. The title's signatures (title+0x2479466, 2026-11-24)
 /// hold one argument each: draw (stride 16), indexed draw (20), dispatch
 /// (12), mesh dispatch (12), and the console's single-pass dispatch, type
 /// 105 (stride 12: the three group counts; its flags live in the
@@ -1356,7 +1356,7 @@ const MORE_METHODS: [(usize, *const ()); 9] = [
 /// base list, after the clears (0x198/0x1a0 as before) and before
 /// ExecuteIndirect, which moved from 0x1d8 to 0x1e8: every slot from 0x1d8
 /// on is two later (taken here as starting exactly at 0x1d8). Inferred from
-/// Grand Theft Auto VI's call shapes: ExecuteIndirect 0x1e8, bottom-of-pipe
+/// The title's call shapes: ExecuteIndirect 0x1e8, bottom-of-pipe
 /// writes 0x238/0x240, waits 0x248/0x250, depth bounds 0x230, shading rate
 /// 0x3f0/0x400, syncs 0x418/0x420, ResetX 0x458 (asserts on failure).
 const fn newer_slot(slot: usize) -> usize {
@@ -1366,7 +1366,7 @@ const fn newer_slot(slot: usize) -> usize {
 /// Methods only newer titles' lists have. 0x490: the enhanced barrier
 /// `(group count, groups)`, with 16-byte groups `(type, count, barriers)`
 /// and 40-byte buffer barriers (title+0x95e0 builds them). 0x470 `(u64)`,
-/// called from Grand Theft Auto VI's state flush with its result unused.
+/// called from the title's state flush with its result unused.
 /// shortcut: 0x470's purpose is unknown; ignored until a title shows it
 /// matters.
 const NEWER_METHODS: [(usize, *const ()); 3] = [
@@ -1423,7 +1423,7 @@ mod tests {
             (at(0x18), at(0x28), at(0x30))
         };
         assert!(put >= draw_limit && put >= api_limit);
-        // The console's ID3D12GraphicsCommandList6, as Grand Theft Auto VI asks.
+        // The console's ID3D12GraphicsCommandList6, as the title asks.
         let mut same = null;
         assert_eq!(list_query(list, &LIST_IIDS[7], &mut same), S_OK);
         assert_eq!(same, list);

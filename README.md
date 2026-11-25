@@ -1,7 +1,8 @@
 # VIctory
 
-Runs Grand Theft Auto VI (Xbox Series X|S) natively on Windows, from files
-the user supplies.
+VIctory runs a supported Xbox Series X|S title natively on Windows from
+user-supplied files. This fork is based on
+[Marvisak’s VIctory](https://github.com/Marvisak/VIctory).
 
 The title's x86-64 code runs unchanged inside our process; VIctory supplies
 the platform underneath it and converts the title's data, ahead of time where
