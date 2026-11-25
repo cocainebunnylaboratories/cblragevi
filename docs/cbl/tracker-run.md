@@ -104,3 +104,19 @@ The user marked the first menu pause at about 715 s. Draws already fell to 86/fr
 
 - KLBF Lab stable `37ad2d2` and beta `1be1d38` report completing the water mission and making a manual save in an approximately 77-minute Lab 39 test. The beta implementation is still `67ee19c`. [Stable report](https://github.com/PastiiJay/klbf-lab/blob/37ad2d2/README.md) · [Beta report](https://github.com/PastiiJay/klbf-lab-beta/blob/1be1d38/README.md)
 - AnyXboxX moved to `198cf0b` with documentation and test updates. Its VIctory submodule remains `80d58f8`. LooperSalty’s separate runtime tip `d2a4bae` fixes duplicate test module names. fxceless and ztrx remain at their reviewed revisions. [AnyXboxX update](https://github.com/LooperSalty/AnyXboxX/commit/198cf0b) · [Runtime test fix](https://github.com/LooperSalty/victory/commit/d2a4bae)
+- The community standings now use typical in-play speed and session stability to order projects that have reached gameplay. A single documented PC can support a listing request. The maintainer asks for a public repository and the file that records its results.
+
+### Series X streaming trial
+
+Flamingo's RTX 4070 headline uses Series S. Its runs identify a separate CPU optimization relevant to our Series X profile. Peppacodes's PR #812 avoids repeated Windows queries for unmapped GPU view blocks. The author reports 26 to 14 ms in guard work on an RTX 5080. Flamingo reports reduced copy preparation in its own Series S tests. Both figures describe donor runs. [PR #812](https://github.com/fxceless/victory-fork/pull/812) · [Flamingo run notes](https://github.com/realblastex/flamingo/blob/49b8a05/FLAMINGO.md)
+
+The port is built as revision `2d25698` on `trial/native-streaming` and keeps the existing Series X output. It retains the upstream view cache and alias guards alongside the opt-in change. The Windows watch test filter passed with both switch values. Use the same checkpoint and route for both modes.
+
+```powershell
+.\scripts\run_diag_fps.cmd StreamingControl "$save"
+.\scripts\run_diag_fps.cmd StreamingPark "$save"
+```
+
+Compare the `view memory askings per frame` and guard timings during world entry, camera turns and the route to the cashier. Record walls, textures, stalls and whether the transition completes. The two launch modes use the same executable and differ only in `VICTORY_VIEW_SET`. A 12 ms gain on the critical path would move a 179 ms route frame to 167 ms, or roughly 6 FPS. The target of two additional FPS requires a larger reduction.
+
+Other Flamingo candidates include its copy queue and parallel texture checks. Our branch already has a different copy-queue path. The parallel-texture patch overlaps the newer deferred submission path, and the raw-address write tracking patch needs validation against the current shader write paths. The Series S upscaling work targets Flamingo's reduced-resolution run. [Copy-queue and texture trials](https://github.com/realblastex/flamingo/blob/49b8a05/FLAMINGO.md) · [Parallel texture PR](https://github.com/fxceless/victory-fork/pull/768) · [Raw-address write tracking](https://github.com/fxceless/victory-fork/pull/916)

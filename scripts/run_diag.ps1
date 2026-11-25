@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'StreamingControl', 'StreamingPark')]
     [string] $PerfCase
 )
 
@@ -43,8 +43,11 @@ $candidate = switch ($PerfCase) {
     'DrawWindows'     { 'community' }
     'Tracker'         { 'tracker' }
     'TrackerWindows'  { 'tracker' }
+    'StreamingControl' { 'streaming' }
+    'StreamingPark'    { 'streaming' }
 }
-$communityMetrics = $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows'
+$streamingTrial = $PerfCase -in 'StreamingControl', 'StreamingPark'
+$communityMetrics = $streamingTrial -or $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows'
 if ($candidate) {
     $candidateDir = Join-Path '.\target\diag\examples\fps-candidates' $candidate
     $exe = Join-Path $candidateDir 'victory.exe'
@@ -103,6 +106,11 @@ if ($PerfCase) {
         $env:VICTORY_FRAME_LOG = '1'
         $env:VICTORY_DRIVER_WATCH = '1'
     }
+    if ($streamingTrial) {
+        $env:VICTORY_VIEW_SET = if ($PerfCase -eq 'StreamingPark') { '1' } else { '0' }
+        $env:VICTORY_VIEW_KNOWN = '0'
+        Remove-Item Env:VICTORY_PARK_EPOCH -ErrorAction SilentlyContinue
+    }
     $env:VICTORY_CARD_FETCH_INFLIGHT = if ($PerfCase -in 'StagedReadback', 'Combined') { '1' } else { '0' }
     if ($env:VICTORY_CARD_FETCH_INFLIGHT -eq '1') {
         # Use the donor's default staging size and per-flight cap for both experiments.
@@ -135,6 +143,10 @@ if ($PerfCase) {
             "VICTORY_ASYNC_SUBMIT=$env:VICTORY_ASYNC_SUBMIT"
             "VICTORY_FRAME_LOG=$env:VICTORY_FRAME_LOG"
             "VICTORY_DRIVER_WATCH=$env:VICTORY_DRIVER_WATCH"
+        }
+        if ($streamingTrial) {
+            "VICTORY_VIEW_SET=$env:VICTORY_VIEW_SET"
+            "VICTORY_VIEW_KNOWN=$env:VICTORY_VIEW_KNOWN"
         }
     ) | Set-Content -LiteralPath (Join-Path $run 'settings.txt')
 }
