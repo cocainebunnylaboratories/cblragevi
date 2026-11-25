@@ -7445,7 +7445,7 @@ impl Meter {
     }
 
     /// Counts a presented frame.
-    fn frame(&mut self, hwnd: HWND, shown: bool) {
+    fn frame(&mut self, hwnd: HWND, shown: bool, width: u32, height: u32) {
         #[cfg(feature = "diagnostics")]
         if let Some(sample) = self.window.observe(std::time::Instant::now(), shown, crate::draw::drawn()) {
             let seconds = sample.elapsed.as_secs_f64();
@@ -7460,6 +7460,7 @@ impl Meter {
                 p95_us = sample.p95.as_micros() as u64,
                 max_us = sample.worst.as_micros() as u64,
                 skipped_presents = sample.skipped,
+                width, height,
                 "host present window"
             );
         }
@@ -7720,7 +7721,7 @@ impl Meter {
         let window = self.window_text.as_str();
         #[cfg(not(feature = "diagnostics"))]
         let window = "";
-        let text = format!(" | VIctory {fps:.1} fps {ms:.1} ms/frame {draws:.0} draws/frame{window} | run {run_seconds}s");
+        let text = format!(" | VIctory {width}x{height} output | {fps:.1} fps {ms:.1} ms/frame {draws:.0} draws/frame{window} | run {run_seconds}s");
         let mut text: Vec<u16> = caption.iter().copied().chain(text.encode_utf16()).collect();
         text.push(0);
         // Setting the text waits for the window's thread (a title thread,
@@ -7789,6 +7790,11 @@ impl Host {
             match resized {
                 Ok(()) => {
                     (p.width, p.height, p.format) = (width, height, format);
+                    #[cfg(feature = "diagnostics")]
+                    {
+                        p.meter.window = Default::default();
+                        p.meter.window_text.clear();
+                    }
                     tracing::info!(
                         width,
                         height,
@@ -7873,7 +7879,7 @@ impl Host {
                 crate::capture::save_read_back(frame, &buffer, &footprint);
             }
             let status = p.swap_chain.Present(0, DXGI_PRESENT(0));
-            p.meter.frame(p.hwnd, status.0 == 0);
+            p.meter.frame(p.hwnd, status.0 == 0, width, height);
             #[cfg(feature = "diagnostics")]
             return Some(probe.is_some_and(|b| crate::capture::black(&b)));
             #[cfg(not(feature = "diagnostics"))]
