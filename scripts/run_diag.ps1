@@ -6,10 +6,16 @@ param(
     [ValidateRange(1, 2147483647)]
     [int] $WorldOffset = 1000,
 
-    [string] $SaveLocation
+    [string] $SaveLocation,
+
+    [ValidateSet('Baseline', 'BatchRehash')]
+    [string] $PerfCase
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PerfCase -and ($Mode -ne 'Default' -or !$SaveLocation)) {
+    throw 'An FPS comparison requires Default mode and a save backup.'
+}
 if ($PSBoundParameters.ContainsKey('SaveLocation')) {
     $titleId = '7952987A'
     $source = Get-Item -LiteralPath $SaveLocation
@@ -68,6 +74,11 @@ if (!(Test-Path -LiteralPath $game -PathType Leaf)) {
 
 $prefix = 'rtx5080'
 if ($Mode -eq 'Depth') { $prefix = 'prison-depth' }
+if ($PerfCase) {
+    $prefix = 'fps-' + $PerfCase.ToLowerInvariant()
+    $env:VICTORY_CARD_FETCH_INFLIGHT = '0'
+    $env:VICTORY_CARD_REHASH_RUNS = if ($PerfCase -eq 'BatchRehash') { '1' } else { '0' }
+}
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 $run = Join-Path $PWD "target\diag\examples\$prefix-$stamp"
 $null = New-Item -ItemType Directory -Path $run
@@ -77,6 +88,15 @@ Write-Host "Boot log $log"
 $revision = Join-Path $run 'revision.txt'
 git rev-parse HEAD | Set-Content -LiteralPath $revision
 git status --short | Add-Content -LiteralPath $revision
+if ($PerfCase) {
+    @(
+        "case=$PerfCase"
+        "save=$($source.FullName)"
+        "binary_sha256=$((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash)"
+        "VICTORY_CARD_REHASH_RUNS=$env:VICTORY_CARD_REHASH_RUNS"
+        "VICTORY_CARD_FETCH_INFLIGHT=$env:VICTORY_CARD_FETCH_INFLIGHT"
+    ) | Set-Content -LiteralPath (Join-Path $run 'settings.txt')
+}
 
 if ($Mode -eq 'Depth') {
     $env:VICTORY_CAPTURE = $run
