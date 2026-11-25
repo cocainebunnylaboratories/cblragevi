@@ -4,7 +4,7 @@ CBL VIctory is a Windows compatibility layer based on Marvisak’s VIctory and f
 
 ## Project status
 
-As of 26 November 2026, the opening interior renders with characters, walls, furnishings and working ceiling lights. The player can move through the hallways, reach a later exterior and resume from an early autosave. Some surfaces disappear in later scenes, shadowed characters lose detail and bright surfaces clip. Streaming into a new area can take more than a second per frame.
+As of 26 November 2026, the opening interior renders with characters, walls, furnishings and working ceiling lights. A repeat run passed the cashier, reached the exterior under player control and continued into Chapter 1. Some surfaces appear distorted or low-detail, shadowed characters lose detail and the cashier can become severely overexposed. The boat objective remains blocked.
 
 ## Renderer changes
 
@@ -14,7 +14,7 @@ As of 26 November 2026, the opening interior renders with characters, walls, fur
 
 ## Test results
 
-On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. The integrated build averaged **5.58 FPS** over 326 measured seconds on the route before the menu pause and **5.95 FPS** over 36 seconds in the cashier scene. The counter and surrounding surfaces render more clearly in the latest capture, with clipping and block artifacts still visible. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
+On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. Measured stretches averaged **3.63–6.39 FPS**, depending on the scene. The repeat passed the previous crash point and ran for **27 min 38 s** before manual close. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
 
 ## Inherited project documentation
 

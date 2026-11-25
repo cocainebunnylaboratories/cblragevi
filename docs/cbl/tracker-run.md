@@ -39,6 +39,21 @@ During normal movement the user also saw the character become almost black. Afte
 
 **Crash at 01:18:07 Sydney time.** The replay's `crashes.log` records a CPU access violation (`0xc0000005`) reading `0xffffffffffffffff` during a streamed scene transition after the cashier interaction. The last complete window ended at 1207.410 s. Near the crash the runtime reported 12,806 MB of video memory in use against a 14,219 MB budget, and system free physical memory briefly fell to 774 MB. The log contains no DXGI device removal or commit-limit error. Memory pressure is a lead, and the source of the invalid pointer remains open. The replay's story autosave still has its prior version. A stock `Tracker` replay of the transition can establish whether the fault reproduces before testing draw windows.
 
+### Repeat run through Chapter 1
+
+Run `fps-tracker-20261126-013513-291` reused binary `cbaef90`, the same prison checkpoint and the same Series X settings. Player control began near 150 s. The cashier shows severe overexposure at 615 s. The user reported the jump/run prompt after the cashier around 763 s. The 1040 s screenshot shows the exterior near a police car, the 1110 s capture shows the next playable character, and a later capture shows the Chapter 1 boat cutscene. The user reported further control and retries on the boat, with audible throttle input and no movement on the attempt that blocked progression.
+
+| Segment by run uptime | Measured time | Successful present intervals | Mean FPS |
+| --- | ---: | ---: | ---: |
+| Route before the cashier, 180–610 s | 427.918 s | 2,090 | 4.884 |
+| Cashier section, 615–712 s | 92.057 s | 427 | 4.638 |
+| After the cashier, 760–900 s | 134.941 s | 490 | 3.631 |
+| Later boat segment, 1593–1630 s | 30.527 s | 195 | 6.388 |
+
+These are selected windows at 3840×2160 output on the tested Series X profile. The route timings differ from the first run. The late sample starts after a local build completed at about 1593 s and ends before a low-draw interruption. Manual close began at approximately 1658 s uptime. The runtime ended the process after its one-second suspend timeout. The previous access violation did not recur in the repeat.
+
+The replay wrote a new story save near the character transition. The copied save matched all ten source files and its story payload differs from the older later-save backup. No subsequent story save appeared before shutdown. The exact resume location remains unverified.
+
 ### Reproducible component measurements
 
 | Workload | Before | After | Scope |
