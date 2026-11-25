@@ -10,8 +10,9 @@ if /i "%~1"=="Community" goto run
 if /i "%~1"=="TextureQueue" goto run
 if /i "%~1"=="DrawWindows" goto run
 if /i "%~1"=="Tracker" goto run
+if /i "%~1"=="TrackerWindows" goto run
 :usage
-echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker "path to save backup"
+echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker^|TrackerWindows "path to save backup"
 exit /b 2
 :run
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_diag.ps1" -Mode Default -PerfCase "%~1" -SaveLocation "%~f2\."

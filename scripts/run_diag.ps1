@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows')]
     [string] $PerfCase
 )
 
@@ -42,8 +42,9 @@ $candidate = switch ($PerfCase) {
     'TextureQueue'    { 'texture-queue' }
     'DrawWindows'     { 'community' }
     'Tracker'         { 'tracker' }
+    'TrackerWindows'  { 'tracker' }
 }
-$communityMetrics = $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker'
+$communityMetrics = $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows'
 if ($candidate) {
     $candidateDir = Join-Path '.\target\diag\examples\fps-candidates' $candidate
     $exe = Join-Path $candidateDir 'victory.exe'
@@ -95,7 +96,7 @@ if ($Mode -eq 'Depth') { $prefix = 'prison-depth' }
 if ($PerfCase) {
     $prefix = 'fps-' + $PerfCase.ToLowerInvariant()
     if ($communityMetrics) {
-        $env:VICTORY_INDIRECT_WINDOW = if ($PerfCase -eq 'DrawWindows') { '1' } else { '0' }
+        $env:VICTORY_INDIRECT_WINDOW = if ($PerfCase -in 'DrawWindows', 'TrackerWindows') { '1' } else { '0' }
         $env:VICTORY_COPY_PLAIN = '0'
         $env:VICTORY_QUEUE2 = '0'
         $env:VICTORY_ASYNC_SUBMIT = '0'
