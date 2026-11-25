@@ -31,7 +31,7 @@ For a prison capture, choose **Continue**, wait until you have control in the ce
 Replace the example path with the executable in your game directory. VIctory writes the startup summary to stdout and tracing to stderr. The pipeline combines both streams, displays them in the terminal, and saves them to `%TEMP%\victory-diag.log`. Each run overwrites that file.
 
 ```powershell
-$game = 'D:\Games\GTAVI\game_scarlett_master.exe'
+$game = 'D:\Titles\TestTitle\game_scarlett_master.exe'
 $env:VICTORY_LOG = 'info'
 .\target\diag\victory.exe run $game --execute 2>&1 |
     Tee-Object -FilePath "$env:TEMP\victory-diag.log"
