@@ -14,16 +14,7 @@ As of 26 November 2026, the opening interior renders with characters, walls, fur
 
 ## Test results
 
-The following measurements come from one Windows system with a Ryzen 9 9950X3D and GeForce RTX 5080 AORUS Master. The Series X profile produced a 3840×2160 swap chain fitted to a 2560×1440 window. Internal rendering resolution can vary by pass.
-
-| Measurement | Result |
-| --- | --- |
-| Gameplay at 6,900–7,200 draws/frame | The typical logged interval averaged 223.75 ms/frame with serial buffer comparison and 209.70 ms/frame with parallel comparison. These are medians from one run per build, with 22 and 27 qualifying intervals. The camera views differed. |
-| GPU buffer comparison, 192 pieces | 406.55 µs serial and 11.05 µs parallel in a paired GPU timestamp benchmark. |
-| CPU selection of 4,096 uploads from 32,768 eligible slots | 716 µs before and 275 µs after bounded selection. Its effect on gameplay frame time is under test. |
-| Observed session | 21 min 30 s from startup through manual close, including loading. Suspension timed out during shutdown. A timed playthrough of the latest integration is pending. |
-
-The results page records the build identities, selection criteria, visual faults and procedure for repeating the test. [Results and reproduction steps](results.md)
+On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. The integrated build averaged **5.53 FPS** in a stationary doorway view and **5.25 FPS** over the first 255 measured seconds after movement began. The player character can darken during movement and recover detail after standing still. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
 
 ## Inherited project documentation
 
