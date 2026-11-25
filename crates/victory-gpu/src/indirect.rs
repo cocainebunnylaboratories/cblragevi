@@ -917,7 +917,7 @@ void main() {
         }
     }
 
-    fn compile_cs(device: &ID3D12Device, source: &str) -> windows::core::Result<Clamp> {
+    pub(super) fn compile_cs(device: &ID3D12Device, source: &str) -> windows::core::Result<Clamp> {
         let mut code: Option<ID3DBlob> = None;
         // SAFETY: source and entry names outlive `D3DCompile`.
         unsafe {
@@ -2683,6 +2683,11 @@ void work() {
             }
             let recording = started.elapsed().as_secs_f64() * 1e3;
             self.finish();
+            (self.elapsed_us() / f64::from(drawn.max(1)), recording)
+        }
+
+        /// Time between the two resolved GPU timestamps after finish().
+        fn elapsed_us(&self) -> f64 {
             let mut data = std::ptr::null_mut();
             let range = D3D12_RANGE { Begin: 0, End: 16 };
             // SAFETY: a read-back buffer the finished list resolved two
@@ -2695,7 +2700,86 @@ void work() {
             };
             // SAFETY: a plain query of our queue.
             let frequency = unsafe { self.queue.GetTimestampFrequency() }.unwrap_or(1).max(1);
-            (ticks as f64 * 1e6 / frequency as f64 / f64::from(drawn.max(1)), recording)
+            ticks as f64 * 1e6 / frequency as f64
+        }
+    }
+
+    #[test]
+    #[ignore = "paired GPU measurement, requires the baseline commit in the local Git history"]
+    fn card_compare_cost() {
+        const PIECES: u32 = 1024;
+        const BYTES: u32 = PIECES * 65536;
+        const PASSES: u32 = 32;
+        let mut rig = Rig::new().expect("hardware D3D12 adapter required");
+        let baseline = std::process::Command::new("git")
+            .args(["show", "a91255f:crates/victory-gpu/src/host.rs"])
+            .output()
+            .expect("git show baseline");
+        assert!(baseline.status.success(), "could not read the pinned baseline");
+        let source = std::str::from_utf8(&baseline.stdout).unwrap();
+        let old = source
+            .split_once("const CARD_COMPARE: &str = r#\"").expect("baseline shader declaration").1
+            .split_once("\"#;").expect("end of baseline shader").0;
+        let mut device: Option<ID3D12Device> = None;
+        // SAFETY: the queue owns a reference to its device.
+        unsafe { rig.queue.GetDevice(&mut device).unwrap() };
+        let device = device.unwrap();
+        let programs = [old, crate::host::CARD_COMPARE].map(|src| super::tests::compile_cs(&device, src).unwrap());
+        let input = buffer(
+            &device, u64::from(BYTES), D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        );
+        let output = |bytes| buffer(
+            &device, bytes, D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        );
+        // Separate signatures for each hash function. Fresh committed storage is zeroed.
+        let hashes = [output(u64::from(PIECES) * 16), output(u64::from(PIECES) * 16)];
+        let differs = output(u64::from(PIECES) * 4);
+        for (pieces, mode) in [(4u32, 0u32), (192, 2)] {
+            let mut times = [Vec::new(), Vec::new()];
+            for trial in 0..12 {
+                // Alternate the first shader and discard the first two pairs for warmup.
+                for variant in [trial % 2, 1 - trial % 2] {
+                    let shader = &programs[variant];
+                    let list = &rig.list;
+                    // SAFETY: open list, live buffers, aligned in-bounds spans and two timestamp slots.
+                    unsafe {
+                        list.SetComputeRootSignature(&shader.root);
+                        list.SetPipelineState(&shader.pso);
+                        list.SetComputeRootShaderResourceView(1, input.GetGPUVirtualAddress());
+                        list.SetComputeRootUnorderedAccessView(2, hashes[variant].GetGPUVirtualAddress());
+                        list.SetComputeRootUnorderedAccessView(3, differs.GetGPUVirtualAddress());
+                        list.EndQuery(&rig.stamps, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+                        for pass in 0..PASSES {
+                            let first = (pass % (PIECES / pieces)) * pieces;
+                            let constants = [first, 0, BYTES, pieces, first * 4, mode];
+                            if variant == 0 {
+                                list.SetComputeRoot32BitConstants(0, 6, constants.as_ptr().cast(), 0);
+                                list.Dispatch(pieces.div_ceil(64), 1, 1);
+                            } else {
+                                crate::host::card_compare_dispatch(list, constants);
+                            }
+                            list.ResourceBarrier(&[super::uav_barrier()]);
+                        }
+                        list.EndQuery(&rig.stamps, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+                        list.ResolveQueryData(&rig.stamps, D3D12_QUERY_TYPE_TIMESTAMP, 0, 2, &rig.back, 0);
+                    }
+                    rig.finish();
+                    let us = rig.elapsed_us() / f64::from(PASSES);
+                    assert!(us.is_finite() && us > 0.0);
+                    if trial >= 2 {
+                        times[variant].push(us);
+                    }
+                }
+            }
+            for (name, mut runs) in ["serial", "parallel"].into_iter().zip(times) {
+                runs.sort_by(f64::total_cmp);
+                eprintln!(
+                    "{} {name} mode={mode} pieces={pieces} GPU us/pass median={:.2} range={:.2}..{:.2}",
+                    rig.card, (runs[4] + runs[5]) / 2.0, runs[0], runs[9],
+                );
+            }
         }
     }
 
