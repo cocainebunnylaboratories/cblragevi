@@ -4,6 +4,8 @@ The fxceless stage is integrated at `433782f` on `integrate-fxceless-memory`. Th
 
 ## Current hardware check
 
+The first two runs on the descriptor build now have local frame-time measurements. The next performance comparison and CPU profiling steps are in the [RTX 5080 frame-time investigation](framerate.md).
+
 The follow-up branch `integrate-fxceless-descriptor-perf` carries fxceless `9376fd6`, one commit beyond the visual baseline below. It replaces BLAKE3 in descriptor change detection with a cheaper fingerprint, leaves recently used draw-table slots to those draws, and skips write-watch calls for memory handled by the view guards. The fork reports the heap pass falling from 70–220 ms to about 3 ms on its machine. Its whole frame still took 250–380 ms in the reported RTX 4070 run.
 
 1. Start with `prison-v1` using the [save launcher](save-checkpoints.md). Match the entry and 90-second ceiling shots and the hallway angle in `post-patch-001`. Confirm those surfaces still render and record the matching diagnostic run path.
