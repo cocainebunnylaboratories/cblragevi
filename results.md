@@ -18,6 +18,17 @@ These figures use the **closed logs** for `fps-baseline-20261126-002130-429` and
 
 **Stability.** The serial session logged 21 min 30 s from startup to close, including loading. The log records a manual window close and a one-second suspend timeout before exit. We have yet to establish 30 minutes of active play on the integrated build.
 
+### Integrated build, opening interior
+
+Run `fps-tracker-20261126-005756-514`, binary `cbaef90`. Control began at 150–155 s of uptime, the initial camera turn ended at about 180 s, and movement along the route began at about 380 s. Both doorway captures show the ceiling and lamps. The door is closed in the first view and open with a character visible in the second.
+
+| Segment by run uptime | Complete windows | Measured time | Successful present intervals | Mean FPS | Longest interval |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Stationary doorway, 180–360 s | 34 | 173.698 s | 960 | 5.527 | 304.9 ms |
+| First movement sample, 380–415 s | 6 | 30.465 s | 153 | 5.022 | 359.8 ms |
+
+All included windows reported 3840×2160 output and zero skipped presents. The user observed intermittent blocky lighting during movement. The two screenshots anchor the stationary segment. A moving and stopped pair at the same surface would help distinguish a lighting effect that resolves over several frames from a persistent material or shadow defect. These segments cover the start of the session only.
+
 ### Reproducible component measurements
 
 | Workload | Before | After | Scope |
