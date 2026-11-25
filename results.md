@@ -27,7 +27,9 @@ Run `fps-tracker-20261126-005756-514`, binary `cbaef90`. Control began at 150–
 | Stationary doorway, 180–360 s | 34 | 173.698 s | 960 | 5.527 | 304.9 ms |
 | First movement sample, 380–415 s | 6 | 30.465 s | 153 | 5.022 | 359.8 ms |
 
-All included windows reported 3840×2160 output and zero skipped presents. The user observed intermittent blocky lighting during movement. The two screenshots anchor the stationary segment. A moving and stopped pair at the same surface would help distinguish a lighting effect that resolves over several frames from a persistent material or shadow defect. These segments cover the start of the session only.
+All included windows reported 3840×2160 output and zero skipped presents. These segments cover the start of the session only.
+
+**Blocky character edges in motion.** The hallway capture at 01:05:29 Sydney time shows rectangular orange patches beside the player's sleeve and arm. The 180 s doorway capture also has a stepped shoulder edge. The window ending at 453.566 s spans the hallway capture and records 30 presents over 5.067 s at 3840×2160, with zero skipped. Nearby usual frames spent 5.1 ms refreshing textures and 0.0 ms waiting for pipelines. At 01:05:32 the renderer detected a texture change four frames after upload and refreshed slot 107442. The log does not associate that slot or any refused compute pass with the affected pixels. Compare the character silhouette in the scene-colour buffer before temporal processing with the final output to localize the first pass showing the blocks.
 
 ### Reproducible component measurements
 
