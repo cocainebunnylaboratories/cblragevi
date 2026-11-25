@@ -1,124 +1,94 @@
-# Getting the first mission on screen
+# First gameplay on the RTX 5080
 
-The first milestone is recognizable 3D world geometry in the **presented image** during the opening mission, across several successive frames. A populated depth buffer is a useful intermediate result. Working subtitles, a higher draw count, or successful shader compilation alone cannot establish that the scene is visible.
+**Next milestone:** resume the first playable cell from the autosave and reproduce the missing ceiling at a fixed camera. Lucia is controllable on the 9950X3D and RTX 5080. Establish which pass loses the room surface before comparing material fixes, frame time or static shadows.
 
-## November 25 upstream review
+## What is in this integration
 
-Fork merge `b934ecf` incorporates upstream `ffe310e` on top of the previous fork revision `39205c2`. The fork's allocator fix, regression tests and descriptor failure logging are present. The measurements below came from the November 24 hardware run. A post-merge mission capture is still outstanding. [Upstream shader change](https://github.com/Marvisak/VIctory/commit/ffe310eb2098e52169f4c44db5ffdabf43a72622)
+Reviewed `integrate-fxceless` at `f17581f`, a merge of local `main` at `0b36ed0` and fxceless `main` at `2119b0e`. The active draw and heap implementations match that fxceless revision. The local slot-search helper is compiled only for its regression tests. Use this revision for the baseline. Someone running an open PR can have materially different rendering behavior. [Pinned fork README](https://github.com/fxceless/victory-fork/blob/2119b0e/README.md)
 
-| Change in the merged code | Consequence for this investigation |
+| Area | What changed and how it affects the investigation |
 | --- | --- |
-| Shader translation now recognizes more loops in which active lanes select different descriptors, including table offsets selected from the first active lane and descriptors chosen across control-flow joins. Upstream reports that 108 programs advanced to a later refusal in its census. | Collect fresh drop reasons and stage/hash pairs. A shader that gets past one unsupported operation can still fail later. The upstream census counts programs, while our log counts dropped work per frame. |
-| CPU-written source textures are uploaded before whole-resource and region copies. Null vertex-view arrays clear their requested slots. | If a captured pass reads a blank texture, inspect its source upload and copy destination before changing the shader. For a vertex draw that loses geometry, check the bound streams at that draw. Mesh dispatches use a separate preparation path. |
-| Target dumping changed for format 11 (16-bit UNORM channels) and format 89 (packed 10:10:10:2). Buffer UAV diagnostics now print the buffer range where available. | Recapture affected targets on the merged build before interpreting a dark thumbnail. Match the UAV range written by a compute producer to the range consumed by a later draw within the same run. A previously logged `uav None` could represent a valid buffer view. |
+| Geometry and textures | The fork corrects the view type used by meshlet culling, handles shader-written texture data across mips and layers, and changes rectangle, depth/stencil and texture read-back handling. A fresh image of the sunlit exterior now gives a better correctness test than the old subtitles-only checkpoint. |
+| Shaders | Skinning, material, fog and sampling changes land alongside spill handling, addressable title memory, wave handling and shader optimization. All three old high-volume failures now pass our offline translation replay. Only reopen them if fresh runtime evidence identifies a missing host pipeline or bad output. |
+| Submission and memory | The fork changes indirect argument clamping, command submission, copy-back and pipeline caching. Relay, wider copy-back and in-place memory are independent experiments. Measure default frame time and visual correctness first. |
+| Ray tracing | The fork reports 49/52 builder programs and 59/64 traversal programs translating. Dynamic building is opt-in and gated on the pipelines being ready. The published baseline still lacks indirect light. Static-world shadows, bounce lighting and a working dynamic builder require different evidence. [Fork RT design](../fork-ray-tracing.md) |
 
-**Local offline check.** On the merged source, we matched the historical containers by hash in the shader archive and BVH builder DLL and called `victory_shader::emit::translate` on each in memory. All three returned their previous errors. The two BVH shaders failed scalar-register address resolution at `0x40` and `0x30`. The archive shader reported an unknown structured-buffer stride at `0x61c`. This reproduces translator behavior independently of the GPU. Their current draw counts and contribution to the missing image still require a live frame.
+**Local verification.** The Windows diagnostic application built. All 18 selected descriptor tests passed with WARP requested. Matching the three historical containers by hash and running `victory_shader::emit::translate` on this branch succeeded for the two BVH shaders (`f6e47efa50226beb`, `3b90165a77d95cdf`) and the archive compute shader (`e30970f1727063fd`). This test ends at DXIL emission. The live run below establishes gameplay on the 5080. Per-shader dispatch correctness and sustained stability remain open.
 
-**Next run.** Rebuild the merged diagnostic executable, take a WARP baseline at the same mission dialogue, then capture depth, scene color and the presented image for several adjacent presents. Compare WARP runs with WARP runs. Use the November 24 RTX log to identify candidate failures. Choose the first failing producer visible in the new capture before assigning shader or allocator work. Keep the BVH work conditional on finding a missing pass that consumes its output.
+## Local gameplay and checkpoint, November 25
 
-## November 24 hardware evidence
+The 11:27:31 baseline ended at 11:29:46 Sydney time. The crash report names a GPU hang (DXGI_ERROR_DEVICE_HUNG, 0x887A0006) following a submission of 11 lists. Breadcrumbs were unavailable. The command and shader responsible are unknown. Preserve that report separately from later crashes. If it recurs, use DRED on a dedicated diagnostic replay.
 
-The November 24, 2026 Windows diagnostic run used a Ryzen 9 9950X3D and an Aorus Master RTX 5080. Player confirmation, the intro, display and accessibility settings, loading, and mission subtitles all worked. The scene behind the subtitles remained dark. The operator closed the application. The executable's source revision and driver version were not recorded with that run.
+The run started at 11:29:58 on `f17581f` with the local changes listed in its revision file. The player completed the intro and controlled Lucia during “Talk to the cellmate.” The player saw sky through the ceiling and coarse detail that sometimes improved while stationary. Intro-video trails are a separate observation to revisit if the same artifact appears during gameplay.
 
-| Observation from the hardware log | What to investigate |
+| Second-run log, 11:40:00–11:40:59 Sydney | Observation |
 | --- | --- |
-| One late reporting interval showed 0.2 fps, 5,457 ms/frame, 1,867 draws/frame, 2,088 dropped and zero host pipelines being built at the time of the report. | World work was still running. Separate missing work from slow work. This interval is a sample, not an average for the mission. |
-| The highest reported reason was 570 indirect kind 10 preparation failures/frame with a mesh pipeline. Kind 0 preparation failures accounted for another 256/frame. | Kind 10 is a mesh dispatch. The indirect arguments and signature passed several checks before preparation failed. Trace which preparation branch failed. |
-| The warning for failed dynamic descriptor tables reached 4,096 drops cumulatively. | Identify the heap, size and owning command lists. This counter spans the run. Its overlap with the 570/frame category is unknown. |
-| Two compute shaders accounted for 234 and 201 drops/frame. Both translations failed while resolving a scalar-register address to a root parameter. A third accounted for 209/frame and failed on an unknown structured-buffer stride. | Join the stage and hash from the ranked drop report to the earlier translation warning in the local log. Re-rank them using a merged-build mission frame and identify the consumer before prioritizing a fix. |
+| 11 periodic frame summaries | Median 349.4 ms/frame, range 346–424 ms. Median 6,980 draws/frame. The player observed 3–5 fps over the broader run. |
+| Frame cost, medians across those summaries | 104.8 ms preparing, 187.2 ms on GPU, 47.4 ms copying back. Across 57 queue-clock samples the median interval with no VIctory work queued was 163.9 ms/frame. These counters have different sampling boundaries and can overlap. |
+| Descriptor tables and dropped work | Median 17,907 tables asked/frame, zero refusals in all 11 summaries, one dropped indirect operation/frame at the median. Most ranked drops were intentionally disabled builder work (median 326.3/frame). |
+| Bindless texture queue | 2,577–2,983 waiting entries. Check queue age, mapping and mip residency for a visibly coarse surface. Queue length alone cannot establish whether a visible texture, mesh LOD or the ceiling was affected. |
 
-The drop counters come from different paths and sampling intervals. Keep their labels and denominators when comparing runs. The first pass responsible for the dark scene is still unknown. [Frame reporting](../../crates/victory-gpu/src/host.rs) · [Indirect operations and table binding](../../crates/victory-gpu/src/draw.rs)
+**Resume evidence.** VIctory committed a SARC0015 v1 slot and a Player v5 profile around 11:36:38–41. The ignored snapshot at `target/diag/examples/save-1795567319884/7952987A` contains those committed versions, SettingsProfileSettings and storage settings. All ten files matched their sources byte for byte. Try Continue with the existing data directory first. If testing a copied save, copy the snapshot's entire title-ID folder under a new directory in `target/diag/examples` and set `VICTORY_DATA_DIR` to the absolute path of that new directory. Keep the original snapshot intact. The exact reload position still needs an in-game check.
 
-## 1. Establish a reproducible checkpoint
+### Experiments from this checkpoint
 
-- [ ] Preserve the original hardware log outside the checkout. Record revision, local changes, title build identity, Windows build, driver version, adapter, console mode, build command, cache state and enabled `VICTORY_*` switches. Record whether the run began with first-time setup or an existing profile.
-- [ ] Use WARP for initial world captures. The project documents physical GPU hangs and display-driver resets in this scene. WARP timing and available features can differ from the RTX run. Keep a separate baseline per adapter. [Project status](../../README.md)
-- [ ] Pick an observable checkpoint such as the first sustained mission dialogue after the loading spinner disappears. Record the wall-clock time, nearby presents and whether the subtitle advances. A fade or a loading frame makes a poor world-frame sample.
-- [ ] Collect a lightweight baseline first. Broad GPU debug logging produced about 214 MiB in the original run. Enable narrower diagnostics only for the question being tested.
+1. **Ceiling and streaming.** Compare one camera angle immediately after entering the room, after 15–30 seconds stationary, and after turning away and back. Collect depth, scene color and the presented frame. If sky remains and depth is clear there, follow room geometry submission, culling and mesh residency. If ceiling-shaped depth exists, follow the color/material pass. Record the clock and queue/drop counts for each view. The sampled zero refusals move descriptor pressure below these checks unless refusals coincide with the actual transition.
+2. **Materials.** Test the two AnyXboxX shader changes below on an isolated build. Track the matched shader failures, skin/clothing detail and ceiling occlusion independently. Use identical checkpoint, viewpoint and display settings.
+3. **Frame time.** Use a warm-cache default–experiment–default comparison, two minutes at the same camera per leg. Compare median and worst periodic frame times, idle queue, preparation, GPU time, copy-back and room geometry. Test relay stage 2 on its own only after a repeatable baseline; stop on device loss or missing geometry. Launch the diag executable directly for experiments: the baseline batch file clears relay, RT and capture variables.
+4. **Experimental RT.** Use an isolated PR 156 build and a copy of the save. First compare a static shadow edge with the dynamic builder off and relay off. The author reported static shadows on a 3090 but white output and ~4 s/frame when trying the dynamic builder. Evaluate shadow movement and receiver occlusion separately from bounce lighting. Keep the builder readiness guard. [RT PR 156](https://github.com/fxceless/victory-fork/pull/156)
 
-From a fresh PowerShell session in the repository root, replace the example game path. Each invocation creates an external run folder. Use a fresh shell or record inherited overrides when comparing runs.
+### AnyXboxX patch comparison
 
-```powershell
-$game = 'D:\Games\GTAVI\game_scarlett_master.exe'
-cargo build --profile diag -p victory --features diagnostics
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostic build failed' }
+The donor is the VIctory submodule in LooperSalty/victory. Its batch 8 is a set of cherry-picks on fxceless `7b0f736`. Our base includes the later `2119b0e`. Forward patch checks against the current working tree passed for the first seven PRs individually (#32 including its formatting follow-up as one diff) and for their combined batch. These were source compatibility checks only. The 4070 Super image assessment and fps came from a short run with different launcher settings. [Donor batch manifest](https://github.com/LooperSalty/AnyXboxX/blob/main/docs/running-gta6.md) · [Pinned batch source](https://github.com/LooperSalty/victory/commit/d138351)
 
-$run = Join-Path $env:TEMP ("victory-world-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
-New-Item -ItemType Directory $run | Out-Null
-git rev-parse HEAD | Set-Content "$run\revision.txt"
-git status --short | Add-Content "$run\revision.txt"
-$env:VICTORY_D3D12_WARP = '1'
-$env:VICTORY_LOG = 'info,victory_gpu::frame=debug'
-Get-ChildItem Env:VICTORY_* | Out-File "$run\environment.txt"
-.\target\diag\victory.exe run $game --execute 2>&1 |
-    Tee-Object -FilePath "$run\boot.log"
-```
-
-Close the title after the checkpoint. Extract the relevant records with context because Windows PowerShell can wrap redirected messages across several lines. For a known shader, use its exact hash as a second search pattern to find its first failure.
-
-```powershell
-Select-String -Path "$run\boot.log" -Context 0,3 -Pattern @(
-    'ms/frame', 'without a host pipeline', 'slots for its tables',
-    'dynamic descriptor allocation failed', 'dynamic descriptor table allocation failed',
-    'shader does not translate', 'black frame after', 'device removed'
-) | Out-File -Width 300 "$run\summary.txt"
-```
-
-## 2. Locate the first missing image
-
-- [ ] Identify a **present number** near the checkpoint from the queue's black-transition or numbered queue records. The per-present debug message prints a frame token. Check it against numbered queue records before using it as a capture index. The hardware run logged activity near frame 5660, but menus, input timing, saves and adapter speed change numbering between boots.
-- [ ] Repeat the same route with captures enabled. In the same shell, run the following block, substituting measured present numbers. It writes a separate log. Frame capture also saves power-of-two presents, while target dumps apply to explicitly listed frames.
-- [ ] Check that the captured final images actually show the intended checkpoint. If a capture caught the spinner or a fade, adjust the numbers and repeat in a new capture directory. Preserve a comparable menu frame as a known-working reference.
-
-```powershell
-$cap = Join-Path $run ("capture-" + (Get-Date -Format 'HHmmss-fff'))
-New-Item -ItemType Directory $cap | Out-Null
-$env:VICTORY_CAPTURE = $cap
-$env:VICTORY_CAPTURE_FRAMES = '5660,5661'  # Example only
-$env:VICTORY_DUMP_TARGETS = '1'
-.\target\diag\victory.exe run $game --execute 2>&1 |
-    Tee-Object -FilePath "$cap\capture.log"
-```
-
-Compare the presented PNG to the end-of-frame target PNGs. Use dimensions, format, logged value range and first-use order to identify candidate depth, scene color and UI surfaces. Resource addresses can change between runs. Capture skips multisampled resources and unsupported formats, and normalizes some values for display. A missing PNG or a black thumbnail alone cannot establish that a pass never wrote. [Capture implementation](../../crates/victory-gpu/src/capture.rs) · [Presentation and black-frame probe](../../crates/victory-gpu/src/queue.rs)
-
-| Evidence in a matched mission frame | Next experiment |
+| fxceless PR / donor commit | Disposition on this branch |
 | --- | --- |
-| Candidate depth and color targets have only clear values | Follow the earliest expected geometry submission through indirect argument preparation, mesh pipeline binding and descriptor tables. Verify that the arguments request nonzero work. |
-| Depth contains scene-shaped structure but scene color stays uniform | Identify the first color or lighting pass consuming that geometry. Check its shader creation result, bound views, target formats and resource states. |
-| A color target contains recognizable world geometry but the presented image has only UI | Follow that surface through resolve, postprocessing, composition and the plane selected for presentation. Check which resource each pass actually reads and writes. |
-| A candidate is overwritten later or excluded from the dump | Capture the suspected producer's output immediately after that pass in a diagnostics build. Record format and value range before interpreting it. |
+| #81 / `6119c21` | First material trial. The local log rejects pixel shader `6b6db9f1a526daeb` for a descriptor read only as data. The donor specifically identifies that shader. Verify pipeline creation and visible output. |
+| #77 / `fd021bf` | Second material trial. Our log rejects `38bf0814e721a1b3` on the first half of interpolation. The patch handles a matching f16 failure pattern. Confirm the individual program before attributing a surface to it. |
+| #32 / `d214807` + `0e2c46a` | Alternate host format for R9G9B9E5 render targets. A focused stability candidate if a failing frame uses that target. The crash report gives no format. |
+| #82 / `35cdf6f` | Implements host depth-bounds state. Test if a missing pass uses it; check both supported and unsupported device paths. |
+| #83 / `194c736` | Shader control-flow fix for lanes that can reactivate after EXEC becomes empty. Validate separately on a shader with that pattern. |
+| #63 / `d9770b9` | More frequent checks of recently changed textures. Relevant to startup flicker; defer unless gameplay captures implicate stale texture content. Measure hashing cost. |
+| #71 / `5e758c7` | Copy queue for relay fetches and parallel card-buffer comparison. Test after the stock relay A/B; a default run cannot establish the relay-specific gain. |
+| #11 / `d138351` | Already restored by fxceless `2119b0e`. Skip the duplicate. Translating the irradiance shaders alone does not demonstrate RT lighting. |
 
-## 3. Investigate indirect mesh drops and descriptor lifetime
+The later donor commit `19feca8` is a separate, opt-in texture-layout experiment with a locally supplied offline GDK library. Its patch fails a forward applicability check in xg.rs. If mip or array layout evidence supports it, port and run its comparison mode before serving changed layouts. The donor's visually preferred batch can still lose room walls. [Donor status and XG experiment](https://github.com/LooperSalty/AnyXboxX)
 
-- [x] Reproduce the cursor case with synthetic data. With only slots 1–3 free and the cursor at slot 3, the previous search rejected a three-slot table. The updated search checks physically contiguous ranges across the cursor. A Windows unit test compares it to all legal next-fit starts for every occupancy pattern on heaps of one through eight slots.
-- [x] Identify the first failed request in the original hardware log. The allocator reported 102 slots. Earlier in the same run a 1,245,184-slot title heap hit the 1,000,000 host cap. The original messages do not identify the failed heap or its free-space distribution.
-- [ ] Look for `dynamic descriptor allocation failed` in a run of the updated diag binary. It samples allocation failures at counts 1, 2, 4, and so on. Compare `requested`, `capacity`, `free` and `largest` from the same event. The companion draw warning identifies the shader, pipeline, list and number of reservations held by that list. The ranked indirect-drop report now identifies table failures explicitly. Run with `VICTORY_LOG=info` to collect all three summaries.
-- [ ] Compare a later mission frame with frame 5639 of the original run. That frame recorded dropped mesh work against six 2560×1440 targets. One affected mesh/pixel pair first bound on frame 5638 and subsequently produced a host mesh pipeline. A missing pipeline at command recording can therefore be transient even if the later frame still looks dark. Compare later targets after pipeline creation settles.
-- [ ] Follow kind 10 through `State::execute_indirect`'s dispatch logic (search for `const MESH`), `prepare_for`, `bind`, `tables` and `HostHeap::dynamic`. Distinguish a pending or refused pipeline, pipeline kind mismatch, failed table creation and argument-clamp failure. The existing generic preparation message rechecks pipeline readiness after the failed attempt.
-- [ ] On a failed allocation, collect table size, effective dynamic capacity, total free slots, largest physically contiguous free span, search cursor, heap identity, stage, pipeline identifier, command list and present number. Aggregate repeated failures by reason over the same interval as the frame report. Keep the scan for free-space diagnostics off the successful hot path.
-- [ ] Log which heap creation branch actually ran. The code tries a larger dynamic range, a smaller range, then a capped view heap in some cases. Check which title-visible slots remain addressable. The model of GPU alone cannot identify the selected branch.
-- [ ] If the merged build rejects a valid request despite a sufficient contiguous span, reproduce the newly observed heap state alongside the existing cursor regression. If total free space suffices but no single span does, measure fragmentation. If total free space is too small, count outstanding reservations per list and follow release through reset, replay and destruction.
-- [ ] Verify that cached tables are reused only while their descriptors and backing resources remain valid. Preserve ownership until GPU use completes. Keep the existing failed-bind guard during experiments.
-- [ ] Run the allocator tests and add the smallest synthetic regression that fails before the proposed change. In the matched scene compare table failures, indirect mesh preparations, actual host work and target contents. A successful allocation must also produce the expected descriptor contents. [Heap implementation and tests](../../crates/victory-gpu/src/descriptor/host.rs) · [Command-list state](../../crates/victory-gpu/src/list.rs)
+## What the community results establish
 
-## 4. Restore a compute producer the scene uses
+| Source and configuration | Reported result | Use in this plan |
+| --- | --- | --- |
+| [Fork maintainer, RTX 4070](https://github.com/fxceless/victory-fork/blob/2119b0e/README.md) | Sunlit characters, surfaces and sky, functional HUD, input and pause menu, about 2.5–4 fps. Shadowed areas remain dark. The first room can lose geometry. | Visual reference for default Series X. Inspect both exterior lighting and interior geometry. |
+| [RTX 5080 gameplay, issue 31](https://github.com/fxceless/victory-fork/issues/31) and [cutscene timings, issue 107](https://github.com/fxceless/victory-fork/issues/107) | A 5080 reached controllable gameplay at about 3.9 fps with speed switches. A separate warm-cache cutscene reached 8.5 fps on 4e17478. The latter tester also reported device removal in a relay-only run. | Closest GPU comparison. Keep cutscene, gameplay and instrumented timing samples separate. |
+| [RTX 4090 relay PR 187](https://github.com/fxceless/victory-fork/pull/187) and [matched-room comparison, issue 168](https://github.com/fxceless/victory-fork/issues/168) | The PR reports a 132 ms median (7.6 fps) with relay stage 2 and a separate 30-minute error-free world run. Another tester saw faster frames but missing room walls with submissions sent ahead. | Treat relay as an A/B experiment. A clean log and higher fps can coexist with missing geometry. |
+| [RX 7900 XT, Proton/RADV, issue 184](https://github.com/fxceless/victory-fork/issues/184) | A contributor reached the world with platform-specific fixes and observed device loss with late submission settings. | Evidence of progress on AMD. Keep its driver workarounds separate from a native Windows NVIDIA run. |
+| [PortWatch stream report](https://gta6.fyniti.co.uk/) and [wave32 shadow work, PR 156](https://github.com/fxceless/victory-fork/pull/156) | PortWatch describes visible RT lighting on stream. The PR author reports static-world shadows with dynamic building off, but a slow, washed-out result when testing the builder. | The stream's exact revision and switches are unverified here. Evaluate PR 156 separately if the stock prologue renders and lighting becomes the target. |
 
-- [x] Match all three high-volume failures by container hash and reproduce them without starting the title. Both scalar-register failures come from the Xbox BVH builder DLL. Their combined frequency warrants investigation for acceleration-structure work, but a dependence of the first opaque geometry pass on their output still needs to be demonstrated.
-- [x] Reproduce the stride failure from the local shader archive. The diagnostic points at a store whose destination metadata already declares a 32-byte structured UAV. The emitter can carry a missing input value forward until it reaches a side-effecting operation. Upstream indexed buffer reads include descriptors loaded directly from the resource heap, for which the emitter's table lookup supplies no stride.
-- [ ] Determine the actual SRV type and stride bound at those upstream reads in a matched world pass. Compare it to the compiler's metadata where available. A tentative stride substitution for the separately declared byte-stride table SRV did not eliminate the offline failure. Preserve the destination UAV's declared layout.
-- [ ] Start with the ranked compute failures in the local log. Associate each stage/hash with a failing instruction offset, translation reason and consumer, if known. Distinguish translation failure from a host pipeline creation refusal after translation. [Pipeline failure classification](../../crates/victory-gpu/src/pipeline/make.rs)
-- [ ] For the scalar-register cases, trace the address definition through moves, arithmetic and control-flow joins to the stage's user-data mapping or descriptor load. Establish what address space it refers to before extending root-parameter analysis. [Resource analysis](../../crates/victory-shader/src/resource.rs)
-- [ ] For the stride case, establish where the title supplies the structured descriptor's stride and whether it varies at runtime. Preserve the value in address calculation. Check indexed elements beyond element zero to expose address errors. [Shader lowering](../../crates/victory-shader/src/emit/lower.rs)
-- [ ] Use synthetic programs or descriptors for committed tests. Validate emitted DXIL and host pipeline creation separately, then compare compute output consumed by the next pass. When testing translator changes, use a fresh external cache for each revision and record warm-up state. Preserve the user's original cache and saves.
-- [ ] Investigate additional translation errors, wave requirements, or indirect argument clamping when the identified producer or consumer depends on them. A common warning from an unrelated pipeline is a lower priority than a missing input to the first broken pass.
+## Before merging into main
 
-## 5. Validate and hand off
+- [x] Compare the active draw and descriptor-heap implementations against fxceless. Both match its merge parent byte for byte. The draw path rejects failed tables and batches eligible indirect clamps. The heap reserves up to 262,144 dynamic slots and tracks free count and failed request sizes. [Draw path](../../crates/victory-gpu/src/draw.rs) · [Heap allocator](../../crates/victory-gpu/src/descriptor/host.rs)
+- [x] Removed the two uncompiled merge-conflict backups. The clean pre-merge implementations can be read with `git show 0b36ed0:crates/victory-gpu/src/draw.rs` and `git show 0b36ed0:crates/victory-gpu/src/descriptor/host.rs`.
+- [x] Scoped the local cursor-search helper to test builds, preserving its regression tests and the fork’s production allocator.
+- [ ] If a live capture warrants a selective port from `53a77e6`, exercise the free run that spans the cursor through **HostHeap::dynamic**. Preserve the fork's free counter, failed-size cache invalidation on release, timing counters and no-wrap rule. Keep allocation changes separate from the first visual baseline. [Local search tests](../../crates/victory-gpu/src/descriptor/slots.rs) · [CI](../../.github/workflows/ci.yml)
+- [x] Record the native RTX 5080 gameplay result and the first run's device-loss report.
+- [ ] Run the branch's Windows CI checks. A successful diagnostic build and filtered tests cover only part of this gate.
 
-- [ ] Run `cargo test -p victory-gpu -p victory-shader` on Windows for the affected crates. Record any tests skipped because they require a validator, adapter capability or external input.
-- [ ] Compare baseline and patched builds on the same adapter, scene, console mode and cache conditions. Keep capture runs separate from timing runs. For shader changes verify that the new translation was used.
-- [ ] Preserve one matched depth/color/present sequence per build. Record the first newly populated target, whether geometry reaches the window across several frames, and whether intro, UI and subtitles still render. Treat partial geometry as a milestone and describe missing surfaces or subsequent failures.
-- [ ] Record the remaining top drop reasons and frame times. If the device is removed, retain the failure and applicable DRED output from a diagnostics run. Use the title's data directory for crash reports. [Logging and crash paths](../development.md)
-- [ ] In the handoff include revision, diff under test, run-folder paths, checkpoint and frame numbers, adapter, evidence for the first failing pass, test results, and the single next experiment that could disprove the current explanation. Explicitly mark any result observed only on WARP.
+## Baseline and evidence collection
 
-Keep raw logs, images, captures, title files, shader dumps, caches and memory dumps outside the repository. Commit implementation changes, synthetic tests and written findings consistent with the [asset policy](../asset-policy.md). Close the diagnostic PowerShell session when finished to clear its capture and WARP settings.
+1. Use a fresh PowerShell session, the diagnostic build and native D3D12. Record the commit, driver, Windows build, display size, Series X profile, effective paths, inherited switches, cache state and save/checkpoint. For the default run leave WARP, relay, late wait, in-place, experimental wave-wide mode, pipeline skips and BVH switches unset. Keep normal driver timeout settings. WARP remains useful for a targeted diagnostic comparison. [Build and log commands](../development.md)
+2. Capture a lightweight `VICTORY_LOG=info` run. Mark the time of a lit cutscene shot, the handoff to player control, the first room window and a sunlit exterior. At the window, record walls, grille, character, shadows and HUD independently. Check input, pause and checkpoint reload. Track sustained frame times at a fixed camera, GPU and preparation time, copy-back, indirect drops, dynamic-table asks/refusals, memory use and any crash or device removal.
+3. Make a separate capture run with a dedicated approved capture directory outside version control. Set `VICTORY_CAPTURE` to that directory and `VICTORY_CAPTURE_WORLD=1`. The first frame with at least 500 host draws anchors captures at offsets 2, 6, 30 and 80. Those can all fall in the cutscene. Use `VICTORY_CAPTURE_WORLD_ALSO` for later offsets or `VICTORY_CAPTURE_FRAMES` for selected presents on a repeat run. Enable `VICTORY_DUMP_TARGETS=1` when tracing a specific missing surface. Keep the presented image, depth/color candidates and frame operation log together. Match the camera and checkpoint across runs. [Capture implementation](../../crates/victory-gpu/src/capture.rs)
+4. Search the new log for `recording per frame`, `dynamic slots:`, `no free dynamic descriptor slots`, `prepare failed` and device removal. The earlier detailed allocation warning is available in commit `e027127`. Use the active asked/refused/search-time counters. If the device is removed, preserve the last frame summary and the matching crash entry before another experiment. [Active counters](../../crates/victory-gpu/src/copystat.rs)
+
+## Choose the next experiment from the image
+
+| Result at the checkpoint | Follow-up |
+| --- | --- |
+| Subtitles or HUD over a blank exterior | Trace the first absent geometry through meshlet culling, the culling buffer's SRV type, indirect arguments, host pipeline acceptance and table binding. If depth contains geometry, follow its color producer and composition into the presented image. |
+| Sunlight and characters render, but walls or grille disappear | Return to the same save and camera with default submission settings. Correlate geometry loss with mesh counts and descriptor refusals. PR 218 reduces the range reserved per fresh table and reports a room-specific improvement on another build. Evaluate it in isolation if refusals line up. [Descriptor PR 218](https://github.com/fxceless/victory-fork/pull/218) |
+| Walls occlude the exterior but their shadowed surfaces are black | Record the geometry baseline as a success. For lighting research compare the same shadow boundary and an indirectly lit surface. Start with static-world shadows on an isolated RT revision. Keep the dynamic builder disabled during that comparison and preserve its all-stages-ready guard. |
+| Default geometry survives movement and reload | At the same checkpoint compare default, relay stage 2, then default again with matched warm caches. Record median frame time and sample count, missing surfaces and end condition. Only then trial another speed switch or a longer stability run. Roll back a setting that loses geometry or triggers device removal. |
+
+## Earlier local evidence
+
+The November 24 RTX 5080 run reached mission dialogue over a dark scene. One late interval reported 5,457 ms/frame, 1,867 draws and 2,088 drops/frame, including 570 indirect mesh preparation failures/frame. A 102-slot allocation failed and cumulative failed-table drops reached 4,096. The original log cannot establish their overlap. On `b934ecf`, two BVH containers still failed scalar address tracking and the archive shader still failed on buffer stride. Keep those as historical comparisons. The integration's successful offline replay supersedes the old translation work item. See the November 25 gameplay sample above for the new baseline.
