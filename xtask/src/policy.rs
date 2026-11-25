@@ -22,6 +22,8 @@ const ALLOWED_NAMES: &[&str] = &[
     ".editorconfig",
     ".victory-root",
     "pre-commit",
+    "run_diag_default.bat",
+    "run_diag_depth.bat",
     "LICENSE",
     "LICENSE-MIT",
     "LICENSE-APACHE",
