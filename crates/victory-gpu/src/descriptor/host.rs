@@ -571,28 +571,47 @@ impl TextureQueue {
     ///   (run 52: 98% of the drawn pixels had no colour texture in the
     ///   first 3D frames).
     fn due(&self, frame: u64, max: usize) -> Vec<(u32, u64)> {
-        let mut again: Vec<(u64, u32, u64)> = Vec::new();
-        let mut fresh: Vec<(u64, u32, u64)> = Vec::new();
+        let mut again = Vec::new();
+        let mut fresh = Vec::new();
         for (&index, w) in self.slots.iter().filter(|(_, w)| w.due <= frame) {
             let class = if w.looks > 0 || w.mapped > 0 { &mut again } else { &mut fresh };
-            class.push((w.written, index, w.write));
+            class.push((index, w.write));
         }
         // By the number of the write, counted over the run.
-        let newest_first = |a: &(u64, u32, u64), b: &(u64, u32, u64)| b.2.cmp(&a.2);
+        let newest_first = |a: &(u32, u64), b: &(u32, u64)| b.1.cmp(&a.1);
+        if again.len() > max {
+            again.select_nth_unstable_by(max, newest_first);
+            again.truncate(max);
+        }
         again.sort_unstable_by(newest_first);
-        fresh.sort_unstable_by(newest_first);
-        let mut order: Vec<(u32, u64)> = again.iter().map(|&(_, index, write)| (index, write)).collect();
-        let (mut new, mut old) = (0, fresh.len());
-        while new < old && order.len() < max {
-            order.push((fresh[new].1, fresh[new].2));
-            new += 1;
-            if new < old && order.len() < max {
-                old -= 1;
-                order.push((fresh[old].1, fresh[old].2));
+        let take = (max - again.len()).min(fresh.len());
+        if take == 0 {
+            return again;
+        }
+        // Only these two ends can be served. Leave the middle unsorted.
+        let newest = take.div_ceil(2);
+        let oldest = take / 2;
+        if take < fresh.len() {
+            fresh.select_nth_unstable_by(newest, newest_first);
+            let tail = &mut fresh[newest..];
+            let split = tail.len() - oldest;
+            if oldest != 0 {
+                tail.select_nth_unstable_by(split, newest_first);
+            }
+            let tail = fresh.len() - oldest;
+            fresh[..newest].sort_unstable_by(newest_first);
+            fresh[tail..].sort_unstable_by(newest_first);
+        } else {
+            fresh.sort_unstable_by(newest_first);
+        }
+        again.reserve(take);
+        for i in 0..newest {
+            again.push(fresh[i]);
+            if i < oldest {
+                again.push(fresh[fresh.len() - 1 - i]);
             }
         }
-        order.truncate(max);
-        order
+        again
     }
 
     /// The entry of `index` if it is still the write the pass was handed.
@@ -3228,6 +3247,47 @@ mod tests {
         assert!(!buffer_view_ok(DXGI_FORMAT_R32_TYPELESS, 0, 0, 0, true, 4096));
         // a structured view the host takes as it is
         assert!(buffer_view_ok(DXGI_FORMAT_UNKNOWN, 1, 10, 12, false, 4096));
+    }
+
+    /// Each bounded pass must produce the same prefix as the full service order.
+    #[test]
+    fn due_limit_preserves_retry_priority_and_both_ends_of_fresh_queue() {
+        let mut queue = TextureQueue::default();
+        for n in 0..211u32 {
+            let slot = (n * 109) % 211;
+            queue.written(slot, 1, u64::from(n % 4), false);
+            if n % 5 == 0 {
+                queue.partly(slot, u64::from(n) + 1, 1, 32);
+            }
+        }
+        for frame in 0..5 {
+            let full = queue.due(frame, usize::MAX);
+            for limit in 0..=full.len() + 2 {
+                assert_eq!(queue.due(frame, limit), full[..limit.min(full.len())]);
+            }
+        }
+    }
+
+    /// CPU-only microbenchmark for the streaming backlog seen on entry to the world.
+    #[test]
+    #[ignore = "timing measurement"]
+    fn texture_queue_selection_cost() {
+        let mut queue = TextureQueue::default();
+        for n in 0..32768u32 {
+            let slot = (n * 19139) % 32768;
+            queue.written(slot, 1, 0, false);
+            if n % 16 == 0 {
+                queue.partly(slot, u64::from(n) + 1, 0, 32);
+            }
+        }
+        let mut samples = Vec::new();
+        for _ in 0..101 {
+            let start = std::time::Instant::now();
+            std::hint::black_box(queue.due(1, 4096));
+            samples.push(start.elapsed().as_micros());
+        }
+        samples.sort_unstable();
+        eprintln!("due(32768 slots, 4096 budget), median {} us", samples[50]);
     }
 
     /// The queue of textures picked by index serves the slots looked at
