@@ -12,7 +12,7 @@ use crate::resource::{Memory, PAGEABLE_IIDS};
 
 #[cfg(windows)]
 pub(crate) mod host;
-#[cfg(any(windows, test))]
+#[cfg(test)]
 mod slots;
 
 const HEAP_IIDS: [Iid; 4] = [

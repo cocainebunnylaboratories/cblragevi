@@ -13,7 +13,18 @@ git rev-parse HEAD
 .\target\diag\victory.exe config
 ```
 
-For first-mission testing, use the WARP baseline and numbered-frame capture instructions in the [first-mission rendering guide](cbl/first-mission-rendering.md). Keep a separate log for each revision and adapter so a later run preserves the original evidence.
+For first-mission testing, use the native Series X baseline and world-relative capture instructions in the [first-mission rendering guide](cbl/first-mission-rendering.md). Keep a separate log for each revision and adapter so a later run preserves the original evidence.
+
+## Launch a diagnostic run
+
+```powershell
+.\scripts\run_diag_default.bat
+.\scripts\run_diag_depth.bat
+```
+
+Both launchers use the configured game and save directories. Each run writes `boot.log` and `revision.txt` in a timestamped folder under `target/diag/examples`. The depth launcher also saves frame images, render targets and draw logs in its `prison-depth-*` folder.
+
+For a prison capture, choose **Continue**, wait until you have control in the cell, and keep the camera aimed at the ceiling. The late target dump defaults to 1,000 presents after the first frame with at least 500 host draws. To adjust that timing, run `.\scripts\run_diag_depth.bat -WorldOffset 1200`.
 
 ## Capture the hardware run
 
@@ -21,7 +32,7 @@ Replace the example path with the executable in your game directory. VIctory wri
 
 ```powershell
 $game = 'D:\Games\GTAVI\game_scarlett_master.exe'
-$env:VICTORY_LOG = 'info,victory_gpu=debug,victory_shader=debug'
+$env:VICTORY_LOG = 'info'
 .\target\diag\victory.exe run $game --execute 2>&1 |
     Tee-Object -FilePath "$env:TEMP\victory-diag.log"
 ```

@@ -54,6 +54,14 @@ The donor is the VIctory submodule in LooperSalty/victory. Its batch 8 is a set 
 
 The later donor commit `19feca8` is a separate, opt-in texture-layout experiment with a locally supplied offline GDK library. Its patch fails a forward applicability check in xg.rs. If mip or array layout evidence supports it, port and run its comparison mode before serving changed layouts. The donor's visually preferred batch can still lose room walls. [Donor status and XG experiment](https://github.com/LooperSalty/AnyXboxX)
 
+### Upstream shader and pipeline prebuild
+
+Reviewed upstream `940d32f` against the PR #81 trial at `c4e7737`. Both upstream feature commits fail forward patch checks on this branch. Keep the default warm-cache ceiling run as a reference before changing the executable. [Upstream instructions](https://github.com/Marvisak/VIctory/blob/940d32f/README.md#getting-started)
+
+1. **Port DXIL warm-up first.** Use the cache-writing scan from upstream `c47b529` as a reference. Add a `translate --cache` path that uses the same cache directory, translation settings and encoder as gameplay. Upstream bundles translator-based cache keys, cached refusals and render pipeline scheduling in that commit. For the first trial, retain the fork’s existing cache keys and scheduling. This fork keys entries on the executable and translation settings, so prebuild and launch must use the same diagnostic executable and settings. [Shader warm-up commit](https://github.com/Marvisak/VIctory/commit/c47b529)
+2. **Verify the shader cache before adding pipeline prebuild.** Run the offline scan twice with a dedicated cache outside the checkout. Confirm the second scan reuses successful entries, then boot the cell with that same cache and compare startup cache hits and draws waiting for pipelines. Keep the previously used cache available for the default comparison.
+3. **Port host pipeline prebuild separately.** Upstream `9c58a1c` uses the shader-pack parser from `286e33f`, database handling and shared runtime pipeline descriptions and names. Preserve the fork’s pipeline state and check that a known mesh pipeline is loaded from the library during gameplay. Review the later atomic-write fix before running multiple pipeline workers. [Shader-pack parser](https://github.com/Marvisak/VIctory/commit/286e33f) · [Pipeline prebuild commit](https://github.com/Marvisak/VIctory/commit/9c58a1c) · [Library write fix](https://github.com/Marvisak/VIctory/commit/be824d9)
+
 ## What the community results establish
 
 | Source and configuration | Reported result | Use in this plan |
