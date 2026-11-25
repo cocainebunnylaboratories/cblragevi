@@ -25,7 +25,7 @@ The local performance branches are recorded separately in the [10 FPS experiment
 
 ## AnyXboxX candidate patches
 
-**LooperSalty** maintains the donor stack. The published run guide records the fifteen fxceless PRs as eight older PRs plus seven new PRs. Its named pin is [`80d58f8`](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3). The guide also describes later DirectStorage commits. Use the exact submodule SHA for a replay. [Run guide](https://github.com/LooperSalty/AnyXboxX/blob/main/docs/running-gta6.md) · [AnyXboxX credits](https://github.com/LooperSalty/AnyXboxX/blob/main/THIRD_PARTY.md)
+**LooperSalty** maintains the donor stack. The published run guide records the fifteen fxceless PRs as eight older PRs plus seven new PRs. Its named pin is [`80d58f8`](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3). The guide also describes later DirectStorage commits. Use the exact submodule SHA for a replay. [Run guide](https://github.com/LooperSalty/AnyXboxX/tree/main/docs) · [AnyXboxX credits](https://github.com/LooperSalty/AnyXboxX/blob/main/THIRD_PARTY.md)
 
 | Patch | Original contributor | Where to consider it |
 | --- | --- | --- |
@@ -44,6 +44,27 @@ The local performance branches are recorded separately in the [10 FPS experiment
 - **beamdotdev** authored the [wave64 split proposal](https://github.com/Marvisak/VIctory/pull/1890). If a downstream port is selected, record that port's author and revision alongside the original PR.
 
 ## Recording a port
+
+### Community integration · 26 November 2026
+
+| Source | Integration on this branch | Verification or remaining dependency |
+| --- | --- | --- |
+| fxceless `0b0074e` | Merge `3c4ff35` preserves the donor history. Includes `f85101b` and `a253706` (submit thread, copy queues, frame timing, driver watch and safer indirect windows). The auto-merged descriptor module retains the local test module. | Windows diagnostic build. Upstream withdrew its earlier unlike-scene comparison. [Pinned donor findings](https://github.com/fxceless/victory-fork/blob/0b0074e/README.md) |
+| tightfall via pug205gti6 | `07e713e` ports the parallel card comparison. `057a353` carries CBL's synthetic timing harness. | Earlier RTX 5080 measurements and a WARP correctness test. [PR 518](https://github.com/fxceless/victory-fork/pull/518) |
+| PastiiJay, KLBF Lab | `17c04b8` recovers from texture-remap overflow. `6ac1bf2` carries myokex's smaller-mip handling from `bddfb4a`. | Windows GPU/format tests cover a full rescan and partial mip memory. Visual impact on the RTX 5080 awaits replay. [Overflow fix](https://github.com/PastiiJay/klbf-lab-beta/commit/56bb7c3) · [Mip port](https://github.com/PastiiJay/klbf-lab-beta/commit/865234c) |
+| uiliannn via PastiiJay | `4ae5df5` handles a first interpolation half used separately, including through a phi. Original VItoriaBr `1ac7518`. | Shader suite includes the standalone-half case. [KLBF port](https://github.com/PastiiJay/klbf-lab-beta/commit/d3e7ce7) |
+| gmankab (Git author gmanka), co-author AugustoZFJ | `a00752c` passes a null blob when creating an empty pipeline library, based on Marvisak/VIctory #347. | Native Windows pipeline tests. Wine/vkd3d-proton verification belongs to the donor. [KLBF stable commit](https://github.com/PastiiJay/klbf-lab/commit/7afe3f7) |
+| LooperSalty’s AnyXboxX `283022d`, runtime gitlink `80d58f8` | `03ffb9c` carries davutsimsekk’s BC7 fix from `a68db08`. `f8efb00` carries Jordan N’s (JordanFableFur) half-float fix from `cbb5be6`. | Synthetic tests cover the first dictionary entry’s 32 indices, ties and NaN. The other shader and placement patches touch paths that have diverged. [BC7 source](https://github.com/LooperSalty/victory/commit/a68db08) · [Half-float source](https://github.com/LooperSalty/victory/commit/cbb5be6) |
+| Zettrox, ztrx `90b529f` | Its runtime parent is already in this branch. The delta is a play launcher and README. | The reported 90-minute RTX 3050 playthrough is donor evidence. [Source change](https://github.com/Zettrox/ztrx/commit/90b529f) |
+| CBL | `bf655cf` limits sorting to slots a pass can serve. `fe8bc43` verifies either legal workgroup reservation order. `1bc46eb` starts the run clock. `6deca49` measures successful host presents and exposes window statistics. | See the [local results and replay protocol](../../results.md). |
+
+**KLBF review.** Stable `75f4f99`, beta report `35e3e7c` and Lab 39 implementation `67ee19c` serve different purposes. On the RX 9070 XT the maintainer reports 5.2 FPS average and 12.9 peak across a 41-minute Lab 38 session, 74 minutes stationary on an earlier build, and 6.6–8.4 median FPS over reduced-resolution Lab 39 runs. Its Series S path renders at 720p and uses FidelityFX to upscale. Its optional generated-frame counts answer a different measurement question. For the 5080 trial we keep Series X, record the output size and measure actual host presents. [Stable report](https://github.com/PastiiJay/klbf-lab/blob/75f4f99/README.md) · [Beta measurements](https://github.com/PastiiJay/klbf-lab-beta/blob/35e3e7c/README.md)
+
+**Water and later scenes.** KLBF's CPU physics case depends on *both* GPU texture readback (Geckomacabre/vx-layer `eee5667d`, ported by PastiiJay in `ebdbcc3`) and XOR addressing (MiamiGame/XTP `00c60fb` and `188d895`, ported in `ee7081b` with Mesa addrlib MIT notices). The readback patch conflicts with our newer submission/relay path. It retains a destination address across GPU work and later writes tiled bytes there. Before porting it, test resource release, remapping and a newer title write between record and completion. Verify both console layouts with synthetic round trips, then use a water checkpoint. The 5070 Ti confirmation makes it a worthwhile NVIDIA correctness experiment. [Readback port](https://github.com/PastiiJay/klbf-lab-beta/commit/ebdbcc3) · [Addressing port](https://github.com/PastiiJay/klbf-lab-beta/commit/ee7081b)
+
+**Other candidates.** Lab 39's second HUD plane expects a compositor and FidelityFX integration absent here. Its fresh-cache prebuild fix targets a command absent from this branch. The larger compute-dispatch port changes the indirect clamp and translator together and needs boundary cases around 65,535 groups on the new clamp. Jonirulah’s revised staged readback conflicts with the newer copy queue and remains available as a separately built experiment. The next native-FPS decision should come from measured frame windows and movement stalls. [HUD port](https://github.com/PastiiJay/klbf-lab-beta/commit/bfbc4d7) · [Dispatch port](https://github.com/PastiiJay/klbf-lab-beta/commit/015af28) · [Readback proposal](https://github.com/fxceless/victory-fork/pull/648)
+
+### Port checklist
 
 1. Record the source repo, PR and full donor SHA before changing code. Credit both the author and any downstream port that supplied the implementation.
 2. Use `git cherry-pick -x` for a direct cherry-pick. When adapting a patch, include the source PR and SHA in the commit body and preserve the donor's applicable attribution and license notices. Describe the local changes in the commit.

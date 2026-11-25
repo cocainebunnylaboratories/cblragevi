@@ -1,3 +1,31 @@
+# CBL VIctory
+
+CBL VIctory runs an Xbox Series title on Windows. The title’s x86-64 code runs on the host CPU, and VIctory translates its graphics commands and shaders for Direct3D 12. We build on Marvisak’s VIctory and fxceless’s renderer.
+
+We started by trying to get the ceiling back in the first room. We can now walk through that room and reach later scenes, but streaming into a new area can still take more than a second per frame. We replay the same checkpoint to see which changes help, and measure the CPU and GPU work separately when a frame gets slower. [Test results and replay instructions](results.md) · [Patch authors and sources](docs/cbl/patch-provenance.md)
+
+## Local status · 26 November 2026
+
+Tested on Windows with a Ryzen 9 9950X3D and a GeForce RTX 5080 AORUS Master, using the Series X profile.
+
+| Area | Observation on the RTX 5080 |
+| --- | --- |
+| Progress | We could move around the first room, follow the hallways and reach a later exterior checkpoint. We can also reload the early autosave and repeat the route. |
+| Picture | The fixed interior view shows the ceiling, fluorescent lights, beds, walls and people. The doorway character is deeply shaded, bright surfaces clip, and other viewpoints show missing or distorted surfaces. |
+| Speed | At 6,900–7,200 draws/frame, the median **logged interval mean** was 223.75 ms on the serial build and 209.70 ms with tightfall’s parallel buffer comparison. One run per build, 22 and 27 qualifying intervals respectively. Camera coverage differs. A walking-route average on the newest build is pending. |
+| Resolution | Series X profile, 3840×2160 swap-chain output fitted to a 2560×1440 window on the control run. Internal resolution can vary by pass. |
+| Stability | The serial control logged 21 min 30 s from startup through manual close, including loading. The runtime timed out waiting for suspension at shutdown. The latest integration still needs a timed playthrough. |
+
+The GPU microbenchmark ran serial and parallel shaders in the same process. A 192-piece buffer compare took 406.55 µs and 11.05 µs respectively. Separately, CBL’s CPU change sorts just the texture descriptors eligible for the next upload pass. At a backlog of 32,768 slots and a budget of 4,096, selection fell from 716 to 275 µs on the 9950X3D. The effect on end-to-end frame time is still under test. [Measurement details](results.md)
+
+The integration carries fxceless’s frame scheduling, GPU timing and driver diagnostics, tightfall’s card compare submitted by pug205gti6, and selected KLBF texture, shader and pipeline-library fixes. PastiiJay’s remap-overflow recovery makes placed textures eligible for refresh after invalidation records overflow. The smaller-mip fix originated with myokex, the interpolation fix with uiliannn, and the empty pipeline-library fix with gmankab and AugustoZFJ. The diagnostic window shows run uptime, recent FPS and the 95th-percentile frame interval. [Integration notes and provenance](docs/cbl/patch-provenance.md)
+
+The integration also carries davutsimsekk’s BC7 dictionary repair and Jordan N’s rectangle half-float rounding fix from LooperSalty’s AnyXboxX runtime stack. Both have targeted regression tests. [Donor runtime](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3)
+
+## Inherited project documentation
+
+The following text is the fxceless README at `0b0074e`, including its original VIctory documentation, author credits, historical findings and test conditions. Machine-specific figures below belong to the upstream projects. [fxceless source](https://github.com/fxceless/victory-fork/blob/0b0074e0b2765e574c622e9a3de566f20f04135b/README.md) · [Marvisak’s VIctory](https://github.com/Marvisak/VIctory)
+
 # VIctory fork (work in progress)
 
 A work-in-progress fork of [VIctory](https://github.com/Marvisak/VIctory), a

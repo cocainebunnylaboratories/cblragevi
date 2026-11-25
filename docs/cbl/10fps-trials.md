@@ -39,7 +39,7 @@ cargo test --profile diag --locked --offline --features diagnostics -p victory-g
 1. On the trials branch, use the command below. Choose Continue. Keep the prison camera fixed for 90 seconds to settle, then record 90 seconds of the same view. Note the local start and end time and take a screenshot showing ceiling, doorway, HUD and draw count. Keep resolution, Series X, cache and driver settings the same throughout.
 
    ```powershell
-   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
+   $save = 'D:\Checkpoints\prison-v1'
    .\scripts\run_diag_fps.cmd ParallelCompare $save
    ```
 

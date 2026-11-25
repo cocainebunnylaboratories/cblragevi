@@ -29,7 +29,7 @@ The timers overlap across workers and queue submissions. Subtracting 104 ms from
 4. The launcher places `boot.log`, `revision.txt` and `settings.txt` in separate `target/diag/examples/fps-*` folders. Settings record the checkpoint, two switches and executable SHA-256. Keep the two run folder names and screenshot times together.
 
 ```powershell
-$save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
+$save = 'D:\Checkpoints\prison-v1'
 .\scripts\run_diag_fps.cmd Baseline $save
 # After closing the first run
 .\scripts\run_diag_fps.cmd BatchRehash $save
@@ -73,4 +73,4 @@ The longer run checked a median 10,060 MB of ranges per busy frame, about 9,902 
 | Marvisak main `940d32f69` | Marvis's shader-written page bitmap avoids comparing untouched pages. This affects shader translation, cache identity and memory tracking. Review after measuring the remaining compare cost on our relay. [Page bitmap](https://github.com/Marvisak/VIctory/commit/cd94d35388765f85d4dd88f24d444e018c468ccd) · [Follow-up](https://github.com/Marvisak/VIctory/commit/940d32f69) |
 | ztrx, VItoriaBr and XCL | ztrx's unique tip still covers a launcher and documentation. VItoriaBr's latest pair concerns shader coverage and sampler selection. XCL's latest world FPS report uses a different renderer. These remain progression and correctness references. [ztrx tip](https://github.com/Zettrox/ztrx/commit/90b529f87) · [VItoriaBr tip](https://github.com/uiliannn/VItoriaBr/commit/b8634afcc) · [XCL report](https://github.com/xcl-dev/xcl/commit/f0e1b2f14) |
 
-The survey checked the two latest default-branch commits for the 28 public GitHub repos linked by the tracker and the separate LooperSalty/victory repo. Secondary projects included the OpenScarlett variants, TuxBox, five-star-recomp, Xbox2Windows, Scarlight, the macOS fork and earlier-stage boot projects. Their tip subjects included buffer lifetime, shader control flow, diagnostics and platform bring-up. Detailed review focused on compatible VIctory changes. The private builds expose no public patches for inspection. Donor timings are author or reviewer measurements. [Community project index](https://vuyp.github.io/gta6-pc-race/#standings)
+The survey checked the two latest default-branch commits for the 28 public GitHub repos linked by the tracker and the separate LooperSalty/victory repo. Secondary projects included the OpenScarlett variants, TuxBox, five-star-recomp, Xbox2Windows, Scarlight, the macOS fork and earlier-stage boot projects. Their tip subjects included buffer lifetime, shader control flow, diagnostics and platform bring-up. Detailed review focused on compatible VIctory changes. The private builds expose no public patches for inspection. Donor timings are author or reviewer measurements. [Tracker maintainer](https://github.com/vuyp)

@@ -2,11 +2,11 @@
 
 The [current rendering plan](next-renderer-work.md#current-priority-is-missing-room-geometry) covers the missing prison, cashier and exterior surfaces, the two save snapshots, and the fxceless memory changes. [Patch provenance](patch-provenance.md) records the contributors and donor revisions. Intro pacing is deferred.
 
-**Next milestone:** preserve the robbery-scene save and establish a matched visual baseline there. Lucia has progressed from the prison to the cashier threat sequence on the 9950X3D and RTX 5080. The current build draws multiple playable scenes; the remaining questions are scene-specific geometry/material correctness, missing indirect lighting and low throughput.
+**Next milestone:** preserve the robbery-scene save and establish a matched visual baseline there. The player has progressed from the prison to the cashier threat sequence on the 9950X3D and RTX 5080. The current build draws multiple playable scenes; the remaining questions are scene-specific geometry/material correctness, missing indirect lighting and low throughput.
 
 ## Cafeteria lighting and geometry: integrated fxceless run, November 25
 
-This run uses the integrated branch at `1bc07604406505756b7b81c92be3032a0d7d050c` (see `target/diag/examples/rtx5080-20261125-140441-047/revision.txt`). Screenshots in `target/diag/examples/screenshots/pr81-fxceless-integration/` show Lucia progressing from the cell to the guard hallway and what appears to be the cafeteria. The room, doors, bars, tables, NPCs and ceiling lights are now being drawn. This is a substantial visual improvement over the earlier blank/missing-world run, but the cafeteria image is heavily darkened/hazed, characters read mostly as silhouettes, and bright light patches have hard/blocky boundaries. The player reports the game remains active.
+This run uses the integrated branch at `1bc07604406505756b7b81c92be3032a0d7d050c` (see `target/diag/examples/rtx5080-20261125-140441-047/revision.txt`). Screenshots in `target/diag/examples/screenshots/pr81-fxceless-integration/` show the player progressing from the cell to the guard hallway and what appears to be the cafeteria. The room, doors, bars, tables, NPCs and ceiling lights are now being drawn. This is a substantial visual improvement over the earlier blank/missing-world run, but the cafeteria image is heavily darkened/hazed, characters read mostly as silhouettes, and bright light patches have hard/blocky boundaries. The player reports the game remains active.
 
 **Captured evidence, not diagnosis.** The cafeteria image `cafeteria-or-something-on-enter.png` (14:12:57 Sydney time) shows 6 fps / 176.1 ms per frame / 6,913 draws in the window title. `hallway ~120s.png` shows 7 fps / 147.7 ms / 4,501 draws. Later periodic log summaries at 14:14:34–14:14:56 report 5.9–6.2 fps, 161–169 ms/frame and 6,105–6,305 draws. These are different camera/scene samples, so they are not a controlled before/after performance comparison. The log is UTF-16LE at `target/diag/examples/rtx5080-20261125-140441-047/boot.log`.
 
@@ -82,7 +82,7 @@ The following source review was written for the earlier `integrate-fxceless` bra
 
 The 11:27:31 baseline ended at 11:29:46 Sydney time. The crash report names a GPU hang (DXGI_ERROR_DEVICE_HUNG, 0x887A0006) following a submission of 11 lists. Breadcrumbs were unavailable. The command and shader responsible are unknown. Preserve that report separately from later crashes. If it recurs, use DRED on a dedicated diagnostic replay.
 
-The run started at 11:29:58 on `f17581f` with the local changes listed in its revision file. The player completed the intro and controlled Lucia during “Talk to the cellmate.” The player saw sky through the ceiling and coarse detail that sometimes improved while stationary. Intro-video trails are a separate observation to revisit if the same artifact appears during gameplay.
+The run started at 11:29:58 on `f17581f` with the local changes listed in its revision file. The player completed the intro and controlled the player character during the first conversation objective. The player saw sky through the ceiling and coarse detail that sometimes improved while stationary. Intro-video trails are a separate observation to revisit if the same artifact appears during gameplay.
 
 | Second-run log, 11:40:00–11:40:59 Sydney | Observation |
 | --- | --- |
@@ -102,7 +102,7 @@ The run started at 11:29:58 on `f17581f` with the local changes listed in its re
 
 ### AnyXboxX patch comparison
 
-The donor is the VIctory submodule in LooperSalty/victory. Its batch 8 is a set of cherry-picks on fxceless `7b0f736`. Our base includes the later `2119b0e`. Forward patch checks against the current working tree passed for the first seven PRs individually (#32 including its formatting follow-up as one diff) and for their combined batch. These were source compatibility checks only. The 4070 Super image assessment and fps came from a short run with different launcher settings. [Donor batch manifest](https://github.com/LooperSalty/AnyXboxX/blob/main/docs/running-gta6.md) · [Pinned batch source](https://github.com/LooperSalty/victory/commit/d138351)
+The donor is the VIctory submodule in LooperSalty/victory. Its batch 8 is a set of cherry-picks on fxceless `7b0f736`. Our base includes the later `2119b0e`. Forward patch checks against the current working tree passed for the first seven PRs individually (#32 including its formatting follow-up as one diff) and for their combined batch. These were source compatibility checks only. The 4070 Super image assessment and fps came from a short run with different launcher settings. [Donor batch manifest](https://github.com/LooperSalty/AnyXboxX/tree/main/docs) · [Pinned batch source](https://github.com/LooperSalty/victory/commit/d138351)
 
 | fxceless PR / donor commit | Disposition on this branch |
 | --- | --- |
@@ -133,7 +133,7 @@ Reviewed upstream `940d32f` against the PR #81 trial at `c4e7737`. Both upstream
 | [RTX 5080 gameplay, issue 31](https://github.com/fxceless/victory-fork/issues/31) and [cutscene timings, issue 107](https://github.com/fxceless/victory-fork/issues/107) | A 5080 reached controllable gameplay at about 3.9 fps with speed switches. A separate warm-cache cutscene reached 8.5 fps on 4e17478. The latter tester also reported device removal in a relay-only run. | Closest GPU comparison. Keep cutscene, gameplay and instrumented timing samples separate. |
 | [RTX 4090 relay PR 187](https://github.com/fxceless/victory-fork/pull/187) and [matched-room comparison, issue 168](https://github.com/fxceless/victory-fork/issues/168) | The PR reports a 132 ms median (7.6 fps) with relay stage 2 and a separate 30-minute error-free world run. Another tester saw faster frames but missing room walls with submissions sent ahead. | Treat relay as an A/B experiment. A clean log and higher fps can coexist with missing geometry. |
 | [RX 7900 XT, Proton/RADV, issue 184](https://github.com/fxceless/victory-fork/issues/184) | A contributor reached the world with platform-specific fixes and observed device loss with late submission settings. | Evidence of progress on AMD. Keep its driver workarounds separate from a native Windows NVIDIA run. |
-| [PortWatch stream report](https://gta6.fyniti.co.uk/) and [wave32 shadow work, PR 156](https://github.com/fxceless/victory-fork/pull/156) | PortWatch describes visible RT lighting on stream. The PR author reports static-world shadows with dynamic building off, but a slow, washed-out result when testing the builder. | The stream's exact revision and switches are unverified here. Evaluate PR 156 separately if the stock prologue renders and lighting becomes the target. |
+| PortWatch stream report and [wave32 shadow work, PR 156](https://github.com/fxceless/victory-fork/pull/156) | PortWatch describes visible RT lighting on stream. The PR author reports static-world shadows with dynamic building off, but a slow, washed-out result when testing the builder. | The stream's exact revision and switches are unverified here. Evaluate PR 156 separately if the stock prologue renders and lighting becomes the target. |
 
 ## Before merging into main
 
