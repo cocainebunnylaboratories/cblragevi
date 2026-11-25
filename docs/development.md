@@ -15,6 +15,8 @@ git rev-parse HEAD
 
 For first-mission testing, use the native Series X baseline and world-relative capture instructions in the [first-mission rendering guide](cbl/first-mission-rendering.md). Keep a separate log for each revision and adapter so a later run preserves the original evidence.
 
+Use the [checkpoint guide](cbl/save-checkpoints.md) to replay the prison or later save from a separate data directory.
+
 ## Launch a diagnostic run
 
 ```powershell
