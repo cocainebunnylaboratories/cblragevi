@@ -14,7 +14,9 @@ As of 26 November 2026, the opening interior renders with characters, walls, fur
 
 ## Test results
 
-On a Ryzen 9 9950X3D and GeForce RTX 5080, the Series X profile presented at 3840×2160. Measured stretches averaged **3.63–6.39 FPS**, depending on the scene. The repeat passed the previous crash point and ran for **27 min 38 s** before manual close. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
+On a Ryzen 9 9950X3D and GeForce RTX 5080, diagnostic build `cbaef90` on `integrate/community-fps` presented at 3840×2160 with the Series X profile. Measured stretches averaged **3.63–6.39 FPS**, depending on the scene. The repeat passed the previous crash point and ran for **27 min 38 s** before manual close. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
+
+The next tests will replay the boat checkpoint to evaluate water physics and compare submission changes using the same Series X route. [Test plan and donor review](docs/cbl/next-session.md)
 
 ## Inherited project documentation
 
