@@ -33,6 +33,23 @@ $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
 .\scripts\run_diag_fps.cmd BatchRehash $save
 ```
 
+## Prison A/B result from fps-fix-001
+
+The 19:16:44 Baseline and 19:25:14 BatchRehash runs used the same executable hash, `d346769` checkout and `prison-v1` save. Both disabled in-flight fetch. The renderer logged hash batching off and on respectively. To omit the menus and initial streaming, start at the first four consecutive FPS reports with at least 6,800 draws/frame. Compare the following 90 seconds, and separately take every subsequent report in the common 6,900–7,200 draw band. These are medians of window summaries.
+
+| Measurement | Baseline | BatchRehash |
+| --- | ---: | ---: |
+| First 90 s frame time, 17 reports each | 215.5 ms | 223.6 ms |
+| Matched draw band, report count | 23 | 12 |
+| Matched draw band, elapsed frame time | 224.9 ms | 223.6 ms |
+| Preparation / GPU time in that band | 79.3 / 97.5 ms | 92.5 / 88.5 ms |
+| Write-watch time / extra fetch wait | 22.4 / 119.9 ms | 29.1 / 123.1 ms |
+| Hash dispatches/frame in the accompanying reports | 342 | 372 |
+
+Keep batching off by default. The earlier segment favors baseline by 8 ms, and matching draw load narrows the gap to 1.3 ms in the other direction. One run per case cannot resolve that difference. Actual hash dispatch counts depend on the upload ranges arriving in each run. Measuring eligible ranges and emitted dispatches on the same submissions would isolate batching efficiency.
+
+The image labelled baseline has a 16:55 Sydney modification time, before the 19:16 launch, and shows sky above the lights during the cellmate prompt. The batch image is timestamped 19:31, shows a ceiling and the guard objective, and falls inside its log. Visual parity for this pair remains unverified. The next measurement is the separate baseline CPU trace below, with journal contention and GPU-fence waits as competing explanations.
+
 ## CPU work to pursue
 
 The longer run checked a median 10,060 MB of ranges per busy frame, about 9,902 MB of which the counter called unchanged. Overlapping watch queries count the same pages more than once. These counters measure range coverage. In `crates/victory-gpu/src/watch.rs`, `ask_ahead` and `ask_once` can hold the shared JOURNAL mutex across kernel queries. Recording threads can serialize there even with idle cores. Aggregate worker time includes waits. It takes a thread trace to distinguish execution, contention, and a worker sleeping on a GPU fence.
