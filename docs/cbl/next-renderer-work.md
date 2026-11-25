@@ -2,7 +2,7 @@
 
 Baseline is `integrate-fxceless-pr81` at `1bc0760`, with fxceless parent `c96b4f2`. The prison, cafeteria and cashier sequence rendered in one local session. At the cashier, the counter and actors appear against what looks like sky through missing room surfaces. The overhead surface is black and the highlights bloom heavily. Keep the cashier and prison as separate repro scenes. See [run evidence](first-mission-rendering.md).
 
-The [donor integration plan](integration-plan.md) records the proposed merge order and the review for fxceless, AnyXboxX, ztrx and upstream. It awaits authorization to start.
+The [donor integration plan](integration-plan.md#first-hardware-check) records the fxceless merge and the next prison capture. The backups now live outside the checkout. See the [checkpoint guide](save-checkpoints.md) for paths and replay commands.
 
 ## Current priority is missing room geometry
 
@@ -25,7 +25,7 @@ The run from 16:50 to 17:17 Sydney time used `1bc0760`. Its log is `target/diag/
 
 The standings report a 05:44 UTC update. Fxceless's README confirms that the multi-view memory guard was followed by later first-room walls in four of four 4070 runs, up from two of five, with walls still absent in some initial frames. The guard tracks writes through alternate mappings of the same physical memory so cached GPU copies can be refreshed. Fxceless also carries the companion buffered-read fix for writes into guarded destinations. See [standings](https://vuyp.github.io/gta6-pc-race/#standings), [fxceless results](https://github.com/fxceless/victory-fork#newest-2026-11-25-later-the-same-day), and [author and patch provenance](patch-provenance.md).
 
-1. Pin the fxceless revision containing the memory fixes. The local remote ref is still `c96b4f2` and the shell could not resolve GitHub. The public notes identify the donor changes. Review the integration diff before making a branch, preserve local PR #81, and carry the multi-view guard and its companion buffered reads together.
+1. Use `integrate-fxceless-memory` at merge `433782f`. The pinned donor `a26859f` carries the multi-view guard, buffered reads, packed-texture refresh, descriptor mirroring and aligned buffer-view copies. The conflict resolution retains the PR #81 behavior through the donor's descriptor-as-data path and keeps the local regression test.
 2. Hold settings and relay mode constant. Replay the saved prison view on the baseline and candidate, take shots at entry and at 30 and 90 seconds, then turn the camera. Record ceiling and hallway independently. Use the later snapshot to repeat the exterior view once its Continue position is known. Leave RT and opt-in memory experiments at defaults for this comparison.
 3. If the candidate improves the prison, check for a similar change in the exterior. Use the cashier for confirmation on a longer replay. If a gap persists, use the single-frame capture described below and the donor's `VICTORY_WALLS_TRACE` if present in the pinned revision.
 4. Prioritize AnyXboxX's BC7 dictionary fix for persistent block artifacts and its `v_div_fixup_f32` fix for persistent overexposure only if the corresponding resources or shader operations match. The later AnyXboxX pin carries fifteen fxceless PRs plus other work. Test narrow fixes with the memory baseline held constant. See [AnyXboxX's donor manifest](https://github.com/LooperSalty/AnyXboxX/blob/main/docs/running-gta6.md).

@@ -1,6 +1,14 @@
 # Donor integration plan for the RTX 5080
 
-Start only after the owner authorizes the integration. This plan was prepared against `integrate-fxceless-pr81` at `1bc0760`, with fxceless parent `c96b4f2`. Preserve this known build, the two save snapshots, and the current research edits. The first acceptance target is opaque room geometry in the prison. The hallway, exterior and cashier are progressively broader checks. See [rendering evidence and checkpoints](next-renderer-work.md).
+The fxceless stage is integrated at `433782f` on `integrate-fxceless-memory`. The remaining donor stages are deferred. The rendering baseline was `1bc0760`, with fxceless parent `c96b4f2`. The first acceptance target is opaque room geometry in the prison. The hallway, exterior and cashier are progressively broader checks. See [rendering evidence and checkpoints](next-renderer-work.md).
+
+## First hardware check
+
+The merge includes three fxceless commits ending at `a26859f`. Windows built `target/diag/victory.exe` with `cargo build --locked --offline --profile diag -p victory --features diagnostics`. The previous diagnostic executable is archived at `target/diag/examples/fxceless-memory-baseline/victory.exe`. In the one shader conflict, the donor's descriptor-as-data path covers the PR #81 image-size case. The local regression test is retained. The policy hook and staged whitespace check passed. Gameplay and the test suite have not been run on the candidate.
+
+1. Use the external [prison-v1 backup](save-checkpoints.md) with the default diagnostic launcher. The live save may resume at the later checkpoint.
+2. Choose Continue and take the ceiling shot on entry, after roughly 30 seconds and after roughly 90 seconds. Turn slightly and take a fourth shot. If convenient, capture the first hallway from a matching angle. Record whether the ceiling or walls appear only after waiting.
+3. Save the images under `target/diag/examples/screenshots/fxceless-memory-prison/` and note the matching `rtx5080-*` run folder. Compare the first room and hallway separately against the prior run. Keep optional rendering switches at their defaults. The merged fork enables physical-page guard notifications and reserves card memory for buffers and render targets by default. Levels on demand remains opt-in.
 
 ## Donor decisions
 
