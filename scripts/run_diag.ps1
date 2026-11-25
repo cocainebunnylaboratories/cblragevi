@@ -4,15 +4,42 @@ param(
     [string] $Mode,
 
     [ValidateRange(1, 2147483647)]
-    [int] $WorldOffset = 1000
+    [int] $WorldOffset = 1000,
+
+    [string] $SaveLocation
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PSBoundParameters.ContainsKey('SaveLocation')) {
+    $titleId = '7952987A'
+    $source = Get-Item -LiteralPath $SaveLocation
+    if ($source -isnot [System.IO.DirectoryInfo]) {
+        throw "Save location must be a directory: $SaveLocation"
+    }
+    if ($source.Name -ne $titleId) {
+        $source = Get-Item -LiteralPath (Join-Path $source.FullName $titleId)
+    }
+    if ($source -isnot [System.IO.DirectoryInfo] -or
+        !(Test-Path -LiteralPath (Join-Path $source.FullName 'saves') -PathType Container)) {
+        throw "Expected a $titleId directory containing a saves folder: $SaveLocation"
+    }
+}
+
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 
 $exe = '.\target\diag\victory.exe'
 if (!(Test-Path -LiteralPath $exe -PathType Leaf)) {
     throw 'Build the diagnostic executable first with cargo build --profile diag -p victory --features diagnostics.'
+}
+
+if ($PSBoundParameters.ContainsKey('SaveLocation')) {
+    $replays = Join-Path $env:LOCALAPPDATA 'victory\replays'
+    $replay = Join-Path $replays (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+    $null = New-Item -ItemType Directory -Path $replays -Force
+    $null = New-Item -ItemType Directory -Path $replay
+    Copy-Item -LiteralPath $source.FullName -Destination $replay -Recurse
+    $env:VICTORY_DATA_DIR = $replay
+    Write-Host "Replay data $replay"
 }
 
 # Use the configured paths and start both modes with the same rendering options.

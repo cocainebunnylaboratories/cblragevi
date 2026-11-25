@@ -24,6 +24,7 @@ const ALLOWED_NAMES: &[&str] = &[
     "pre-commit",
     "run_diag_default.bat",
     "run_diag_depth.bat",
+    "run_diag_from_save.bat",
     "LICENSE",
     "LICENSE-MIT",
     "LICENSE-APACHE",

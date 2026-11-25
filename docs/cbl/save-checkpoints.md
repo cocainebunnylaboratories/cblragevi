@@ -11,34 +11,20 @@ Each backup holds a complete `7952987A` title directory for replay, with its `sa
 
 ## Run from a backup
 
-Close any active game session first. From the repo root in PowerShell, choose a backup and run:
+Close any active game session first. From the repo root in PowerShell, run the launcher with the backup folder:
 
 ```powershell
-$backupRoot = 'C:\Users\isuru\Documents\cbl\gtavi\saves'
-$checkpoint = 'prison-v1'   # Change to 'later-v2' for the later save
-$title = '7952987A'
-$source = Join-Path (Join-Path $backupRoot $checkpoint) $title
-$runRoot = Join-Path $backupRoot ("replay-$checkpoint-" + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
-
-if (!(Test-Path -LiteralPath $source -PathType Container)) {
-    throw "Backup title directory not found: $source"
-}
-$null = New-Item -ItemType Directory -Path $runRoot -ErrorAction Stop
-Copy-Item -LiteralPath $source -Destination $runRoot -Recurse -ErrorAction Stop
-
-$previousDataDir = [Environment]::GetEnvironmentVariable('VICTORY_DATA_DIR', 'Process')
-try {
-    $env:VICTORY_DATA_DIR = $runRoot
-    .\target\diag\victory.exe config
-    if ($LASTEXITCODE -ne 0) { throw 'Check the VIctory paths before launching.' }
-    .\scripts\run_diag_default.bat
-} finally {
-    [Environment]::SetEnvironmentVariable('VICTORY_DATA_DIR', $previousDataDir, 'Process')
-}
+.\scripts\run_diag_from_save.bat 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
 ```
 
-Choose **Continue** once the game loads. The launcher writes new saves to the replay copy and diagnostics to the timestamped run log in the repo. For depth captures, substitute `.\scripts\run_diag_depth.bat` in the block. The data root must be outside any VIctory checkout. Point `VICTORY_DATA_DIR` at the parent of `7952987A`.
+Replace `prison-v1` with `later-v2` to replay the later checkpoint. You can also pass the `7952987A` directory itself. Choose **Continue** once the game loads. The launcher prints the replay copy under `%LOCALAPPDATA%\victory\replays` and the timestamped diagnostic log in the repo. Any new autosaves go into the replay copy.
+
+For a depth capture from a backup, run the shared script in a fresh PowerShell process:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run_diag.ps1 -Mode Depth -SaveLocation 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
+```
 
 ## Return to your usual save
 
-Run the launcher normally after the replay closes. The PowerShell block restores the previous data-directory setting. With the default configuration, your usual data root is `%LOCALAPPDATA%\victory\data`. Launching with a replay copy leaves that data root and the two master backups alone.
+Run `.\scripts\run_diag_default.bat` after the replay closes. With the default configuration, your usual data root is `%LOCALAPPDATA%\victory\data`. The save launcher sets the replay path only for its own process.
