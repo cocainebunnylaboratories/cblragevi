@@ -20,7 +20,7 @@ The renderer is based on Marvisak's VIctory and the work of its contributors. fx
 
 ## AnyXboxX candidate patches
 
-**LooperSalty** maintains the donor stack. The published run guide records the fifteen fxceless PRs as eight older PRs plus seven new PRs. Its named pin is [`80d58f8`](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3). The guide also describes later DirectStorage commits. Use the exact submodule SHA for a replay. [Run guide](https://github.com/LooperSalty/AnyXboxX/blob/main/docs/running-gta6.md) · [AnyXboxX credits](https://github.com/LooperSalty/AnyXboxX/blob/main/THIRD_PARTY.md)
+**LooperSalty** maintains the donor stack. The published run guide records the fifteen fxceless PRs as eight older PRs plus seven new PRs. Its named pin is [`80d58f8`](https://github.com/LooperSalty/victory/commit/80d58f8fe2769d6c857eb27abc159b6cf64530a3). The guide also describes later DirectStorage commits. Use the exact submodule SHA for a replay. [Run guide](https://github.com/LooperSalty/AnyXboxX/tree/main/docs) · [AnyXboxX credits](https://github.com/LooperSalty/AnyXboxX/blob/main/THIRD_PARTY.md)
 
 | Patch | Original contributor | Where to consider it |
 | --- | --- | --- |
