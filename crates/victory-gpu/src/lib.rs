@@ -35,6 +35,8 @@ pub mod frame;
 pub mod framelog;
 #[cfg(windows)]
 mod host;
+#[cfg(all(windows, feature = "diagnostics"))]
+mod present_stats;
 #[cfg(windows)]
 mod indirect;
 #[cfg(windows)]

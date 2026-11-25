@@ -43,7 +43,12 @@ pub fn start_run_clock() {
 
 #[cfg(windows)]
 pub(crate) fn run_seconds() -> u64 {
-    RUN_START.get_or_init(Instant::now).elapsed().as_secs() / 5 * 5
+    run_elapsed().as_secs() / 5 * 5
+}
+
+#[cfg(windows)]
+pub(crate) fn run_elapsed() -> Duration {
+    RUN_START.get_or_init(Instant::now).elapsed()
 }
 
 fn clock() -> std::sync::MutexGuard<'static, Option<Clock>> {

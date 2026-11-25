@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker')]
     [string] $PerfCase
 )
 
@@ -38,7 +38,12 @@ $candidate = switch ($PerfCase) {
     'ParallelCompare' { 'parallel-compare' }
     'StagedReadback'  { 'staged-readback' }
     'Combined'        { 'combined' }
+    'Community'       { 'community' }
+    'TextureQueue'    { 'texture-queue' }
+    'DrawWindows'     { 'community' }
+    'Tracker'         { 'tracker' }
 }
+$communityMetrics = $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker'
 if ($candidate) {
     $candidateDir = Join-Path '.\target\diag\examples\fps-candidates' $candidate
     $exe = Join-Path $candidateDir 'victory.exe'
@@ -89,6 +94,14 @@ $prefix = 'rtx5080'
 if ($Mode -eq 'Depth') { $prefix = 'prison-depth' }
 if ($PerfCase) {
     $prefix = 'fps-' + $PerfCase.ToLowerInvariant()
+    if ($communityMetrics) {
+        $env:VICTORY_INDIRECT_WINDOW = if ($PerfCase -eq 'DrawWindows') { '1' } else { '0' }
+        $env:VICTORY_COPY_PLAIN = '0'
+        $env:VICTORY_QUEUE2 = '0'
+        $env:VICTORY_ASYNC_SUBMIT = '0'
+        $env:VICTORY_FRAME_LOG = '1'
+        $env:VICTORY_DRIVER_WATCH = '1'
+    }
     $env:VICTORY_CARD_FETCH_INFLIGHT = if ($PerfCase -in 'StagedReadback', 'Combined') { '1' } else { '0' }
     if ($env:VICTORY_CARD_FETCH_INFLIGHT -eq '1') {
         # Use the donor's default staging size and per-flight cap for both experiments.
@@ -114,6 +127,14 @@ if ($PerfCase) {
         "binary_sha256=$((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash)"
         "VICTORY_CARD_REHASH_RUNS=$env:VICTORY_CARD_REHASH_RUNS"
         "VICTORY_CARD_FETCH_INFLIGHT=$env:VICTORY_CARD_FETCH_INFLIGHT"
+        if ($communityMetrics) {
+            "VICTORY_INDIRECT_WINDOW=$env:VICTORY_INDIRECT_WINDOW"
+            "VICTORY_COPY_PLAIN=$env:VICTORY_COPY_PLAIN"
+            "VICTORY_QUEUE2=$env:VICTORY_QUEUE2"
+            "VICTORY_ASYNC_SUBMIT=$env:VICTORY_ASYNC_SUBMIT"
+            "VICTORY_FRAME_LOG=$env:VICTORY_FRAME_LOG"
+            "VICTORY_DRIVER_WATCH=$env:VICTORY_DRIVER_WATCH"
+        }
     ) | Set-Content -LiteralPath (Join-Path $run 'settings.txt')
 }
 

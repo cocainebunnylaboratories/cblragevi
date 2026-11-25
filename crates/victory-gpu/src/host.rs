@@ -7420,6 +7420,10 @@ struct Meter {
     logged: std::time::Instant,
     /// The caption the window had, once read.
     caption: Option<Vec<u16>>,
+    #[cfg(feature = "diagnostics")]
+    window: crate::present_stats::Window,
+    #[cfg(feature = "diagnostics")]
+    window_text: String,
 }
 
 impl Meter {
@@ -7433,11 +7437,35 @@ impl Meter {
             drawn: crate::draw::drawn(),
             logged: now,
             caption: None,
+            #[cfg(feature = "diagnostics")]
+            window: Default::default(),
+            #[cfg(feature = "diagnostics")]
+            window_text: String::new(),
         }
     }
 
     /// Counts a presented frame.
-    fn frame(&mut self, hwnd: HWND) {
+    fn frame(&mut self, hwnd: HWND, shown: bool) {
+        #[cfg(feature = "diagnostics")]
+        if let Some(sample) = self.window.observe(std::time::Instant::now(), shown, crate::draw::drawn()) {
+            let seconds = sample.elapsed.as_secs_f64();
+            let fps = sample.frames as f64 / seconds;
+            let p95_ms = sample.p95.as_secs_f64() * 1000.0;
+            self.window_text = format!(" | {seconds:.1}s avg {fps:.2} fps, p95 {p95_ms:.0} ms");
+            tracing::info!(
+                run_ms = crate::frame::run_elapsed().as_millis() as u64,
+                frames = sample.frames,
+                window_us = sample.elapsed.as_micros() as u64,
+                draws = sample.draws,
+                p95_us = sample.p95.as_micros() as u64,
+                max_us = sample.worst.as_micros() as u64,
+                skipped_presents = sample.skipped,
+                "host present window"
+            );
+        }
+        if !shown {
+            return;
+        }
         #[cfg(feature = "diagnostics")]
         tracing::debug!(target: "victory_gpu::frame", token = crate::frame::current(), "present");
         #[cfg(feature = "diagnostics")]
@@ -7688,7 +7716,11 @@ impl Meter {
             self.caption = Some(buffer);
         }
         let Some(caption) = &self.caption else { return };
-        let text = format!(" | VIctory {fps:.0} fps {ms:.1} ms/frame {draws:.0} draws/frame | run {run_seconds}s");
+        #[cfg(feature = "diagnostics")]
+        let window = self.window_text.as_str();
+        #[cfg(not(feature = "diagnostics"))]
+        let window = "";
+        let text = format!(" | VIctory {fps:.1} fps {ms:.1} ms/frame {draws:.0} draws/frame{window} | run {run_seconds}s");
         let mut text: Vec<u16> = caption.iter().copied().chain(text.encode_utf16()).collect();
         text.push(0);
         // Setting the text waits for the window's thread (a title thread,
@@ -7840,8 +7872,8 @@ impl Host {
             if let Some((buffer, footprint)) = capture {
                 crate::capture::save_read_back(frame, &buffer, &footprint);
             }
-            let _ = p.swap_chain.Present(0, DXGI_PRESENT(0));
-            p.meter.frame(p.hwnd);
+            let status = p.swap_chain.Present(0, DXGI_PRESENT(0));
+            p.meter.frame(p.hwnd, status.0 == 0);
             #[cfg(feature = "diagnostics")]
             return Some(probe.is_some_and(|b| crate::capture::black(&b)));
             #[cfg(not(feature = "diagnostics"))]
