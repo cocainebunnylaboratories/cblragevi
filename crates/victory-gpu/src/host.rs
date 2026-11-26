@@ -2604,7 +2604,7 @@ fn flying() -> bool {
 /// CPU (the title's buffer copies, fills of upload memory, textures) and
 /// runs steps of ours that may read or write it anywhere; what the
 /// flights' shaders write is not there yet.
-fn late_blocked(runs: &[&HostList]) -> Option<usize> {
+fn late_blocked(runs: &[&HostList], index: Option<&SubmissionIndex>) -> Option<usize> {
     let written = {
         let line = line();
         if line.written.is_empty() {
@@ -2612,73 +2612,85 @@ fn late_blocked(runs: &[&HostList]) -> Option<usize> {
         }
         line.written.clone()
     };
-    blocked_by(&written, runs, true)
+    blocked_by(&written, runs, index, true)
 }
 
 /// [`late_blocked`] against `written`, the title memory flights' shaders
 /// may write (in order, joined); `count` whether the kind of read is
 /// counted for the frame line.
-fn blocked_by(written: &[(usize, usize)], runs: &[&HostList], count: bool) -> Option<usize> {
+fn blocked_by(written: &[(usize, usize)], runs: &[&HostList], index: Option<&SubmissionIndex>, count: bool) -> Option<usize> {
     if written.is_empty() {
         return None;
     }
+    if let Some(index) = index {
+        return index.hazards.iter().find_map(|&access| blocked_access(access, written, count));
+    }
     for list in runs {
-        for step in &list.deferred().copies {
-            match step {
-                &Step::Copy(dst, src, len) => {
-                    if touches(written, src, src + len) || touches(written, dst, dst + len) {
-                        // A copy that only READS where flights may write is
-                        // not waited for either, and checked like a fill
-                        // (`fill_ahead`): run 210 looked at 197 such waits
-                        // (20,480 bytes out of the 174 MB buffer into a small
-                        // buffer of its own, four a frame, 43 to 60 ms a
-                        // frame) and neither side had other bytes after
-                        // one. A copy INTO such a range still waits.
-                        if !touches(written, dst, dst + len) && fill_ahead::on() {
-                            if count {
-                                fill_ahead::read(src, len);
-                            }
-                            continue;
-                        }
-                        if count {
-                            LATE_STATS[15].fetch_add(1, Ordering::Relaxed);
-                            #[cfg(feature = "diagnostics")]
-                            fill_check::blocked_copy(written, dst, src, len);
-                        }
-                        return Some(WHY_READ);
+        let deferred = list.deferred();
+        if let Some(why) = deferred.copies.iter().filter_map(Hazard::from_step)
+            .find_map(|access| blocked_access(access, written, count))
+        {
+            return Some(why);
+        }
+    }
+    None
+}
+
+mod submission_index;
+use submission_index::{Hazard, SubmissionIndex};
+
+fn blocked_access(access: Hazard, written: &[(usize, usize)], count: bool) -> Option<usize> {
+    match access {
+        Hazard::Copy(dst, src, len) => {
+            if touches(written, src, src + len) || touches(written, dst, dst + len) {
+                // A copy that only READS where flights may write is
+                // not waited for either, and checked like a fill
+                // (`fill_ahead`): run 210 looked at 197 such waits
+                // (20,480 bytes out of the 174 MB buffer into a small
+                // buffer of its own, four a frame, 43 to 60 ms a
+                // frame) and neither side had other bytes after
+                // one. A copy INTO such a range still waits.
+                if !touches(written, dst, dst + len) && fill_ahead::on() {
+                    if count {
+                        fill_ahead::read(src, len);
                     }
+                    return None;
                 }
-                &Step::Fill(_, src, len) => {
-                    if touches(written, src, src + len) {
-                        // Not waited for, and checked when the flights land
-                        // (`fill_ahead`).
-                        if fill_ahead::on() {
-                            if count {
-                                fill_ahead::read(src, len);
-                            }
-                            continue;
-                        }
-                        if count {
-                            LATE_STATS[16].fetch_add(1, Ordering::Relaxed);
-                            #[cfg(feature = "diagnostics")]
-                            fill_check::blocked(written, src, len);
-                        }
-                        return Some(WHY_READ);
-                    }
+                if count {
+                    LATE_STATS[15].fetch_add(1, Ordering::Relaxed);
+                    #[cfg(feature = "diagnostics")]
+                    fill_check::blocked_copy(written, dst, src, len);
                 }
-                Step::Texture(staging) => {
-                    let (at, len) = staging.memory();
-                    if touches(written, at, at + len) {
-                        if count {
-                            LATE_STATS[17].fetch_add(1, Ordering::Relaxed);
-                        }
-                        return Some(WHY_READ);
-                    }
-                }
-                Step::Run(_) => return Some(WHY_RUN),
-                Step::Refresh(..) | Step::GpuWrite(..) | Step::Host(_) => {}
+                return Some(WHY_READ);
             }
         }
+        Hazard::Fill(src, len) => {
+            if touches(written, src, src + len) {
+                // Not waited for, and checked when the flights land
+                // (`fill_ahead`).
+                if fill_ahead::on() {
+                    if count {
+                        fill_ahead::read(src, len);
+                    }
+                    return None;
+                }
+                if count {
+                    LATE_STATS[16].fetch_add(1, Ordering::Relaxed);
+                    #[cfg(feature = "diagnostics")]
+                    fill_check::blocked(written, src, len);
+                }
+                return Some(WHY_READ);
+            }
+        }
+        Hazard::Texture(at, len) => {
+            if touches(written, at, at + len) {
+                if count {
+                    LATE_STATS[17].fetch_add(1, Ordering::Relaxed);
+                }
+                return Some(WHY_READ);
+            }
+        }
+        Hazard::Run => return Some(WHY_RUN),
     }
     None
 }
@@ -3178,12 +3190,14 @@ fn given_to_shaders<'a>(
 /// may write and that the title wrote since it was last copied. The
 /// refresh leaves ranges shaders are writing alone (`Shadow::update`), so
 /// the title's bytes there would reach the card a submission late.
-fn stale_under_flights(runs: &[&HostList]) -> bool {
+fn stale_under_flights(runs: &[&HostList], index: Option<&SubmissionIndex>) -> bool {
     use std::sync::Arc;
     // Per copy, the span of what is refreshed (a flush brings that much
     // up to date at most).
     let mut spans: Vec<(Arc<crate::shadow::Shadow>, usize, usize)> = Vec::new();
-    if step_index() {
+    if let Some(index) = index {
+        spans.extend(index.refresh.iter().filter(|(s, _, _)| s.writes_pending()).cloned());
+    } else if step_index() {
         // By copy (its address): its place in `spans`, or that no shader's
         // writes are pending on it. Asked once a copy, not once a step
         // (20,000 to 43,000 refresh steps a frame, each a lock and a search
@@ -4291,15 +4305,15 @@ impl Host {
     /// copies, inside the card's memory, in the same place of its order as
     /// before. So the copies change exactly when they did on one queue; what
     /// leaves the direct queue is the crossing from the PC's memory.
-    fn card_before(&self, runs: &[&HostList], flown: bool, sent: u64) -> Option<CardPlan> {
+    fn card_before(&self, runs: &[&HostList], index: Option<&SubmissionIndex>, flown: bool, sent: u64) -> Option<CardPlan> {
         use std::sync::Arc;
         if !crate::shadow::cards() {
             return None;
         }
         // The ranges this submission's shaders may write, per copy.
         let mut declared: Vec<(Arc<crate::shadow::Shadow>, Vec<(usize, usize)>)> = Vec::new();
-        let indexed = step_index();
-        if indexed {
+        let indexed = index.is_some() || step_index();
+        if index.is_none() && indexed {
             let given = given_to_shaders(runs, true);
             declared = declared_by_index(given.iter().map(|(shadow, range)| (shadow, *range)));
         }
@@ -4320,6 +4334,8 @@ impl Host {
                 }
             }
         }
+        let declared = index.map_or(declared.as_slice(), |i| i.writes.as_slice());
+        let card_ranges = || declared.iter().filter(|(shadow, _)| shadow.carded());
         // With the relay: the order of the queue is held from here until
         // what is taken is on the queue, and the taking is numbered.
         let mut order = relay().then(|| QUEUE_ORDER.lock().unwrap_or_else(|e| e.into_inner()));
@@ -4342,7 +4358,7 @@ impl Host {
                 second.sent_up(&self.queue, sent_as);
             }
         };
-        if declared.is_empty() && dirty.is_empty() {
+        if dirty.is_empty() && card_ranges().next().is_none() {
             numbered();
             return None;
         }
@@ -4351,7 +4367,7 @@ impl Host {
         // A copy whose shader writes are declared for the first time gets
         // its bytes from before, whole.
         let mut whole: Vec<Arc<crate::shadow::Shadow>> = Vec::new();
-        for (shadow, _) in &declared {
+        for (shadow, _) in card_ranges() {
             if shadow.card_make_before(|size| {
                 let before = self.uav_buffer(crate::shadow::card_hash_bytes(size))?;
                 name(&before, || "title buffer on the card, hashes of its pieces".into());
@@ -4498,7 +4514,7 @@ impl Host {
         // Each byte once, as the copy-back joins the declared ranges. The
         // results go behind those of plans still in the air.
         let mut at = work.taken;
-        for (shadow, ranges) in &declared {
+        for (shadow, ranges) in card_ranges() {
             let mut sorted = ranges.clone();
             sorted.sort_unstable();
             let mut spans: Vec<(usize, usize)> = Vec::new();
@@ -5600,17 +5616,26 @@ impl Host {
         // and the ranges shaders write are per host copy, not per submission.
         let mut submitted = self.submitted.lock().unwrap_or_else(|e| e.into_inner());
         let was_working = working(true);
+        let mode = submission_index::mode();
+        let index = (mode != 0).then(|| SubmissionIndex::collect(runs)).filter(|index| {
+            if mode == 2 && !index.agrees(runs) {
+                tracing::error!("submission index mismatch, using reference scans");
+                false
+            } else {
+                true
+            }
+        });
         submitting(1, runs.len());
         // Flights in the air ([`late`]): a submission that is waited for
         // settles them first, one sent ahead only if preparing it reads
         // what they write.
         if !late {
             self.settle(&mut submitted, WHY_SYNC);
-        } else if let Some(why) = late_blocked(runs) {
+        } else if let Some(why) = late_blocked(runs, index.as_ref()) {
             if relay_exact() && why == WHY_READ {
                 // Only until the flights that may write what is read have
                 // landed: their copy-back's end, not the card's other work.
-                relay_wait(why, |line| blocked_by(&line.written, runs, false).is_none());
+                relay_wait(why, |line| blocked_by(&line.written, runs, index.as_ref(), false).is_none());
             } else {
                 self.settle(&mut submitted, why);
             }
@@ -5657,32 +5682,36 @@ impl Host {
         // One write-watch asking for everything the submission refreshes
         // (`VICTORY_ASK_ONCE`): per copy, the span of its refreshed ranges.
         if crate::watch::once() {
-            let mut spans: std::collections::HashMap<usize, (usize, usize)> = std::collections::HashMap::new();
-            for list in runs {
-                for step in &list.deferred().copies {
-                    if let Step::Refresh(shadow, address, len) = step
-                        && !shadow.unwatched()
-                    {
-                        let span = spans
-                            .entry(std::sync::Arc::as_ptr(shadow) as usize)
-                            .or_insert((*address, *address + *len));
-                        *span = (span.0.min(*address), span.1.max(*address + *len));
+            let ranges: Vec<_> = if let Some(index) = &index {
+                index.refresh.iter().filter(|(s, _, _)| !s.unwatched()).map(|(_, a, b)| (*a, *b)).collect()
+            } else {
+                let mut spans: std::collections::HashMap<usize, (usize, usize)> = std::collections::HashMap::new();
+                for list in runs {
+                    for step in &list.deferred().copies {
+                        if let Step::Refresh(shadow, address, len) = step
+                            && !shadow.unwatched()
+                        {
+                            let span = spans
+                                .entry(std::sync::Arc::as_ptr(shadow) as usize)
+                                .or_insert((*address, *address + *len));
+                            *span = (span.0.min(*address), span.1.max(*address + *len));
+                        }
                     }
                 }
-            }
-            let ranges: Vec<(usize, usize)> = spans.into_values().collect();
+                spans.into_values().collect()
+            };
             crate::watch::ask_once(&ranges);
             // Behind flights: the title wrote memory that a flight's shaders
             // may write too, and this submission refreshes it. The flights
             // are settled, and the asking made again: the copy-back wrote
             // title memory, which other copies of it must see.
-            if behind && stale_under_flights(runs) {
+            if behind && stale_under_flights(runs, index.as_ref()) {
                 let settling = std::time::Instant::now();
                 self.settle(&mut submitted, WHY_STALE);
                 settled += settling.elapsed();
                 crate::watch::ask_once(&ranges);
             }
-        } else if behind && stale_under_flights(runs) {
+        } else if behind && stale_under_flights(runs, index.as_ref()) {
             let settling = std::time::Instant::now();
             self.settle(&mut submitted, WHY_STALE);
             settled += settling.elapsed();
@@ -5716,7 +5745,7 @@ impl Host {
             self.settle(&mut submitted, WHY_MOST);
             settled += settling.elapsed();
         }
-        let card = self.card_before(runs, flown, *submitted);
+        let card = self.card_before(runs, index.as_ref(), flown, *submitted);
         if let Some(check) = card.as_ref().and_then(|c| c.check.clone()) {
             lists.push(Some(check));
         }
@@ -5732,7 +5761,7 @@ impl Host {
             if let Err(e) = signalled {
                 fail(format_args!("a submission sent ahead could not be followed by a signal ({e})"));
             }
-            let back = declared_writes(runs);
+            let back = index.map_or_else(|| declared_writes(runs), |i| i.writes);
             let mut texture_back_ranges = Vec::new();
             for list in runs {
                 texture_back_ranges.extend(list.deferred().texture_backs.iter().map(crate::texback::Back::range));
@@ -5856,7 +5885,7 @@ impl Host {
         if let Some(card) = &card {
             self.card_back(card, &mut submitted, &mut std::collections::HashSet::new());
         }
-        let back = declared_writes(runs);
+        let back = index.map_or_else(|| declared_writes(runs), |i| i.writes);
         hand_back(&back);
         if let Some(card) = card {
             self.card_done(card);
@@ -7926,6 +7955,7 @@ impl Meter {
                 local_budget_bytes = memory.map(|m| m[0]),
                 shared_used_bytes = memory.map(|m| m[3]),
                 ram_free_bytes = ram_free,
+                submission_index_build_us_total = submission_index::BUILD_US.load(Ordering::Relaxed),
                 staging_table_wait_us_total = crate::texture::STAGING_WAIT_US.load(Ordering::Relaxed),
                 "host present window"
             );
