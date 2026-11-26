@@ -19,7 +19,7 @@ On Windows with a Ryzen 9 9950X3D and GeForce RTX 5080, diagnostic build `d77c73
 
 Measured segments averaged **11.42 FPS** with the boat underway, **4.73 FPS** in a late city segment and **4.32 FPS** on foot. A five-second city window dipped to **2.16 FPS**. The session length includes loading and idle time. [Gameplay results](results.md) · [Open-world test plan](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#open-world-performance-replay)
 
-In a short open-world replay from the same manual save, the async-present profile averaged **5.27 FPS** while moving at 3840×2160 output, up from **4.86 FPS** in the control. The candidate averaged 12% fewer draws per frame and had a longer worst hitch. The result is preliminary. [Async-present comparison](results.md#open-world-async-present-trial)
+Two open-world comparisons at 3840×2160 output tested async presentation. The first moving sample rose from **4.86 to 5.27 FPS** with fewer draws per frame. The repeat measured **4.49 FPS** with the reference profile and **4.54 FPS** with async present. The gain did not replicate over equal-duration movement samples. [Async-present comparison](results.md#open-world-async-present-trial)
 
 ## Inherited project documentation
 
