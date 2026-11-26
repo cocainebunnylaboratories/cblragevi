@@ -2528,8 +2528,15 @@ impl State {
                     #[cfg(feature = "diagnostics")]
                     list.note_op(|| self.op_text(format!("mesh {x}"), false));
                     self.mesh_scissor(list, true);
-                    // SAFETY: an open list with everything set.
-                    unsafe { l6.DispatchMesh(x, 1, 1) };
+                    // With the launch stage the count goes to it as a root
+                    // constant (`crate::launch`).
+                    match crate::pipeline::host_pipeline(self.pipeline as This).and_then(|p| p.launch.as_ref()) {
+                        Some(launch) => {
+                            crate::launch::record(list, launch.roots, crate::launch::Launch::Direct(x));
+                        }
+                        // SAFETY: an open list with everything set.
+                        None => unsafe { l6.DispatchMesh(x, 1, 1) },
+                    }
                     self.mesh_scissor(list, false);
                     DRAWN.fetch_add(1, Ordering::Relaxed);
                     true
@@ -3146,6 +3153,49 @@ impl State {
             why("mesh draws are switched off (VICTORY_MESH_TEST=skip)");
             return false;
         }
+        // One mesh record of a pipeline with the launch stage: the draw
+        // reads it itself (`crate::launch`), no clamp of ours before it.
+        let single_mesh = kind == MESH && max == 1 && count.is_none();
+        if single_mesh && crate::launch::on() {
+            crate::launch::eligible();
+        }
+        if single_mesh
+            && stride >= 12 && stride.is_multiple_of(4)
+            && let Some(launch) = &p.launch
+            && list.budget().is_some()
+        {
+            let offset = args.offset(arguments);
+            if !offset.is_multiple_of(4) {
+                why("a mesh record not 4-byte aligned");
+                return false;
+            }
+            self.window = None;
+            if p.stages.iter().any(|stage| stage.translated().stores) {
+                list.gather_close();
+            }
+            args.refresh(list, arguments, len);
+            if !self.prepare_for(list, false, true) {
+                why("prepare failed");
+                return false;
+            }
+            #[cfg(feature = "diagnostics")]
+            list.note_op(|| self.op_text(format!("indirect kind {kind} max {max} at {arguments:#x} launched"), false));
+            // SAFETY: a live buffer.
+            let record = unsafe { args.buffer.GetGPUVirtualAddress() } + offset;
+            list.keep(&args.buffer);
+            self.mesh_scissor(list, true);
+            let launched = crate::launch::record(list, launch.roots, crate::launch::Launch::Record(record));
+            self.mesh_scissor(list, false);
+            if !launched {
+                why("no budget for the launch");
+                return false;
+            }
+            DRAWN.fetch_add(1, Ordering::Relaxed);
+            return true;
+        }
+        if kind == MESH && crate::launch::on() {
+            crate::launch::fallback();
+        }
         // A window of records clamped in one pass (`windows`): for single
         // records without a count buffer, drawn by shaders that store to no
         // buffer. Anything else ends the window: it uses the scratch buffer
@@ -3364,6 +3414,21 @@ impl State {
             why("prepare failed");
             return false;
         }
+        // A mesh call the launch stage does not take (a count buffer, more
+        // than one record): the same pipeline without the stage.
+        if kind == MESH
+            && let Some(launch) = &p.launch
+        {
+            let Some(plain) = launch.plain() else {
+                why("no host pipeline without the launch stage");
+                return false;
+            };
+            // SAFETY: an open list and a live pipeline of the same root
+            // signature.
+            unsafe { list.list.SetPipelineState(plain) };
+            self.host_pipeline = windows::core::Interface::as_raw(plain) as usize;
+            list.keep_pipeline(plain, &p.root);
+        }
         #[cfg(feature = "diagnostics")]
         list.note_op(|| {
             self.op_text(format!("indirect kind {kind} max {max} at {arguments:#x}"), kind == DISPATCH)
@@ -3401,7 +3466,7 @@ impl State {
 /// The host command signature for one argument of `kind` with records
 /// `stride` bytes apart (no root arguments, so no root signature), made
 /// once.
-fn host_signature(kind: u32, stride: u32) -> Option<ID3D12CommandSignature> {
+pub(super) fn host_signature(kind: u32, stride: u32) -> Option<ID3D12CommandSignature> {
     static MADE: std::sync::Mutex<Vec<((u32, u32), ID3D12CommandSignature)>> =
         std::sync::Mutex::new(Vec::new());
     let mut made = MADE.lock().unwrap_or_else(|e| e.into_inner());

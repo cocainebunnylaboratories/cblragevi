@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl', 'RangeWater', 'RangeWaterAsync')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl', 'RangeWater', 'RangeWaterAsync', 'MeshLaunch', 'MeshControl')]
     [string] $PerfCase
 )
 
@@ -34,7 +34,7 @@ if ($PSBoundParameters.ContainsKey('SaveLocation')) {
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 
 $exe = '.\target\diag\victory.exe'
-$rangeProfile = if ($PerfCase -eq 'RangeWaterAsync') { 'RangeWater' } else { $PerfCase }
+$rangeProfile = if ($PerfCase -in 'RangeWaterAsync', 'MeshLaunch', 'MeshControl') { 'RangeWater' } else { $PerfCase }
 $candidate = switch ($rangeProfile) {
     'ParallelCompare' { 'parallel-compare' }
     'StagedReadback'  { 'staged-readback' }
@@ -50,7 +50,7 @@ $candidate = switch ($rangeProfile) {
     'SubmissionControl' { 'submission-5080' }
     'Range5080'         { 'range-5080' }
     'RangeControl'      { 'range-5080' }
-    'RangeWater'        { 'range-5080' }
+    'RangeWater'        { if ($PerfCase -in 'MeshLaunch', 'MeshControl') { 'mesh-5080' } else { 'range-5080' } }
     'Tuning5080'        { '5080-tuning' }
     'OvernightControl' { 'overnight' }
     'OvernightFPS'     { 'overnight' }
@@ -154,6 +154,7 @@ if ($PerfCase) {
         $env:VICTORY_STAGING_SHARDS = $env:VICTORY_STEP_INDEX
         $env:VICTORY_TEXTURE_BACK = if ($rangeProfile -in 'OvernightWater', 'RangeWater') { '1' } else { '0' }
         if ($rangeProfile -eq 'RangeWater') {
+            $env:VICTORY_MESH_LAUNCH = if ($PerfCase -eq 'MeshLaunch') { '1' } else { '0' }
             $env:VICTORY_ASYNC_PRESENT = if ($PerfCase -eq 'RangeWaterAsync') { '1' } else { '0' }
             if ($PerfCase -eq 'RangeWaterAsync') { $env:VICTORY_LATE_WAIT = '3' }
         }
@@ -192,6 +193,7 @@ if ($PerfCase) {
             "VICTORY_DRIVER_WATCH=$env:VICTORY_DRIVER_WATCH"
         }
         if ($rangeProfile -eq 'RangeWater') {
+            "VICTORY_MESH_LAUNCH=$env:VICTORY_MESH_LAUNCH"
             "VICTORY_LATE_WAIT=$env:VICTORY_LATE_WAIT"
             "VICTORY_ASYNC_PRESENT=$env:VICTORY_ASYNC_PRESENT"
         }

@@ -391,6 +391,9 @@ fn clamp_into(
     let before = list.indirect_state(dst);
     let recorded = record_clamp_as(c, &list.list, (dst, before), budget, src, count, spec, ahead);
     if recorded {
+        if spec.0 == 10 {
+            crate::launch::mesh_clamp();
+        }
         list.indirect_readable(dst);
     }
     recorded
@@ -905,7 +908,7 @@ pub(crate) fn check_hit(
     true
 }
 
-fn uav_barrier() -> D3D12_RESOURCE_BARRIER {
+pub(super) fn uav_barrier() -> D3D12_RESOURCE_BARRIER {
     D3D12_RESOURCE_BARRIER {
         Type: D3D12_RESOURCE_BARRIER_TYPE_UAV,
         Flags: D3D12_RESOURCE_BARRIER_FLAG_NONE,
