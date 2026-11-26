@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl', 'RangeWater')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl', 'RangeWater', 'RangeWaterAsync')]
     [string] $PerfCase
 )
 
@@ -34,7 +34,8 @@ if ($PSBoundParameters.ContainsKey('SaveLocation')) {
 Set-Location -LiteralPath (Split-Path -Parent $PSScriptRoot)
 
 $exe = '.\target\diag\victory.exe'
-$candidate = switch ($PerfCase) {
+$rangeProfile = if ($PerfCase -eq 'RangeWaterAsync') { 'RangeWater' } else { $PerfCase }
+$candidate = switch ($rangeProfile) {
     'ParallelCompare' { 'parallel-compare' }
     'StagedReadback'  { 'staged-readback' }
     'Combined'        { 'combined' }
@@ -56,7 +57,7 @@ $candidate = switch ($PerfCase) {
     'OvernightStreaming' { 'overnight' }
     'OvernightWater'   { 'overnight' }
 }
-$rangeTrial = $PerfCase -in 'Range5080', 'RangeControl', 'RangeWater'
+$rangeTrial = $rangeProfile -in 'Range5080', 'RangeControl', 'RangeWater'
 $submission = $rangeTrial -or $PerfCase -in 'Submission5080', 'SubmissionVerify', 'SubmissionControl'
 $tuning = $submission -or ($PerfCase -in 'TuningControl', 'Tuning5080')
 $overnightFast = $tuning -or ($PerfCase -in 'OvernightFPS', 'OvernightStreaming')
@@ -136,7 +137,7 @@ if ($PerfCase) {
         $env:VICTORY_BACK_OWN_VIEW = $env:VICTORY_JOIN_PARTS
         $env:VICTORY_INDIRECT_GATHER = $env:VICTORY_JOIN_PARTS
         $env:VICTORY_STEP_INDEX = if ($submission -or $PerfCase -eq 'Tuning5080') { '1' } else { '0' }
-        $env:VICTORY_SUBMISSION_INDEX = switch ($PerfCase) {
+        $env:VICTORY_SUBMISSION_INDEX = switch ($rangeProfile) {
             'Range5080' { '1' }
             'RangeWater' { '1' }
             'RangeControl' { '1' }
@@ -144,14 +145,18 @@ if ($PerfCase) {
             'SubmissionVerify' { 'verify' }
             default { '0' }
         }
-        $env:VICTORY_TEXTURE_RANGE_BATCH = switch ($PerfCase) {
+        $env:VICTORY_TEXTURE_RANGE_BATCH = switch ($rangeProfile) {
             'Range5080' { '1' }
             'RangeWater' { '1' }
             'RangeControl' { 'measure' }
             default { '0' }
         }
         $env:VICTORY_STAGING_SHARDS = $env:VICTORY_STEP_INDEX
-        $env:VICTORY_TEXTURE_BACK = if ($PerfCase -in 'OvernightWater', 'RangeWater') { '1' } else { '0' }
+        $env:VICTORY_TEXTURE_BACK = if ($rangeProfile -in 'OvernightWater', 'RangeWater') { '1' } else { '0' }
+        if ($rangeProfile -eq 'RangeWater') {
+            $env:VICTORY_ASYNC_PRESENT = if ($PerfCase -eq 'RangeWaterAsync') { '1' } else { '0' }
+            if ($PerfCase -eq 'RangeWaterAsync') { $env:VICTORY_LATE_WAIT = '3' }
+        }
         $env:VICTORY_TEXTURE_NO_WAIT = if ($tuning -or $PerfCase -eq 'OvernightStreaming') { '1' } else { '0' }
     }
 }
@@ -185,6 +190,10 @@ if ($PerfCase) {
             "VICTORY_ASYNC_SUBMIT=$env:VICTORY_ASYNC_SUBMIT"
             "VICTORY_FRAME_LOG=$env:VICTORY_FRAME_LOG"
             "VICTORY_DRIVER_WATCH=$env:VICTORY_DRIVER_WATCH"
+        }
+        if ($rangeProfile -eq 'RangeWater') {
+            "VICTORY_LATE_WAIT=$env:VICTORY_LATE_WAIT"
+            "VICTORY_ASYNC_PRESENT=$env:VICTORY_ASYNC_PRESENT"
         }
         if ($overnight) {
             "VICTORY_JOIN_PARTS=$env:VICTORY_JOIN_PARTS"
