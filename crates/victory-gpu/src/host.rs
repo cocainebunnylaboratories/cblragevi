@@ -1968,6 +1968,7 @@ struct Deferred {
     /// descriptor heaps): the title may release its objects before it
     /// submits the list.
     kept: Vec<windows::core::IUnknown>,
+    kept_pipelines: std::collections::HashSet<(usize, usize)>,
     /// Buffer ranges refreshed since the last title copy (host copy,
     /// address, bytes): refreshing them again would find the same bytes.
     refreshed: std::collections::HashSet<(usize, usize, usize)>,
@@ -7136,6 +7137,15 @@ impl HostList {
     /// The list's buffers for `crate::indirect::window_check`.
     pub(crate) fn window_check(&self) -> Option<&crate::indirect::WindowCheck> {
         self.window_check.get_or_init(crate::indirect::WindowCheck::new).as_ref()
+    }
+
+    /// Retain each pipeline pair until reset. The meter still records every bind.
+    pub(crate) fn keep_pipeline(&self, state: &ID3D12PipelineState, root: &ID3D12RootSignature) {
+        let mut deferred = self.deferred();
+        if deferred.kept_pipelines.insert((state.as_raw() as usize, root.as_raw() as usize)) {
+            deferred.kept.push(state.clone().into());
+            deferred.kept.push(root.clone().into());
+        }
     }
 
     /// Keeps `object` alive until the list is reset.
