@@ -17,8 +17,10 @@ Launch times are Sydney time on 26 November 2026.
 | 18:46:40 | `d77c7395`, `Range5080` | Opening checkpoint to a failed attempt before the measured chase | 11m 03s | Manual close to retry |
 | 18:57:57 | `d77c7395`, `Range5080` | Opening checkpoint through chase to Chapter 1 boat | 28m 00s | Manual close after the boat objective failed under throttle |
 | 19:29:51 | `d77c7395`, `RangeWater` | Chapter 1 boat to open-world driving, on-foot play and manual saves | **65m 46s** | Manual close |
+| 21:25:28 | `d77c7395`, `RangeWater` | Manual slot 2, open-world street on foot | 5m 08s | Manual close |
+| 21:43:57 | `d77c7395`, `RangeWaterAsync` | Manual slot 2, open-world street on foot | 4m 44s | Manual close |
 
-Uptime includes loading, cutscenes, retries and idle time. The first four runs started from fresh copies of the opening autosave. The last run used the Chapter 1 backup from the 18:57 run and enabled `VICTORY_TEXTURE_BACK=1`. Readback completed and the boat responded to throttle. The build also includes PastiiJay’s XOR texture-addressing port. [Earlier run notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/tracker-run.md) · [Current settings and credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#boat-readback-replay)
+Uptime includes loading, cutscenes, retries and idle time. The first four runs started from fresh copies of the opening autosave. The 19:29 run used the Chapter 1 backup from the 18:57 run and enabled `VICTORY_TEXTURE_BACK=1`. Readback completed and the boat responded to throttle. The build also includes PastiiJay’s XOR texture-addressing port. [Earlier run notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/tracker-run.md) · [Current settings and credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#boat-readback-replay)
 
 ## Rendered FPS by scene
 
@@ -36,7 +38,20 @@ Uptime includes loading, cutscenes, retries and idle time. The first four runs s
 | 19:29 | Late open-world segment | 3401.628–3499.356 s | 97.7 s | 4.73 |
 | 19:29 | Final on-foot sample | 3910.175–3941.230 s | 31.1 s | 4.32 |
 
-Averages divide successful host-present intervals by elapsed time within each selected segment. The late open-world sample included a five-second window at **2.16 FPS**. The final on-foot sample averaged 9,253 draws per frame with zero skipped presents, and the longest present interval was 452 ms. These are scene samples. The open-world manual slot is the starting point for a future matched route. [Frame windows](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/run-ledger-2026-11-26.md#measured-windows) · [Replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#open-world-performance-replay)
+Averages divide successful host-present intervals by elapsed time within each selected segment. The late open-world sample included a five-second window at **2.16 FPS**. The final on-foot sample averaged 9,253 draws per frame with zero skipped presents, and the longest present interval was 452 ms. These are scene samples. [Frame windows](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/run-ledger-2026-11-26.md#measured-windows) · [Replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#open-world-performance-replay)
+
+## Open-world async-present trial
+
+Both runs used the same executable, manual slot 2, water readback and 3840×2160 output. The candidate enabled fxceless’s async-present path, and the log confirmed that it queued frames. Each row uses complete logging windows inside the player’s activity markers. p95 is the median of the recorded window p95 values.
+
+| Profile | Activity | Measured time | Average FPS | Draws/frame | p95 | Longest interval |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `RangeWater` | Moving | 107.2 s | 4.86 | 9,606 | 282 ms | 762 ms |
+| `RangeWaterAsync` | Moving | 91.8 s | 5.27 | 8,496 | 275 ms | 934 ms |
+| `RangeWater` | Standing | 45.9 s | 5.77 | 8,769 | 247 ms | 522 ms |
+| `RangeWaterAsync` | Standing | 45.7 s | 6.39 | 8,188 | 209 ms | 301 ms |
+
+Both runs recorded zero skipped presents in these windows. Moving FPS rose 8.5% in this pair, with 11.6% fewer draws per frame and a longer worst hitch. Candidate screenshots at the same intersection show visible street geometry and persistent dark shading, with broad dark bands across the road in the later capture. A repeat with matched camera views and similar draw counts is needed to estimate the gain from async present. [Detailed run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/run-ledger-2026-11-26.md#2143-open-world-async-present-trial) · [Profile and credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#phase-4--present-pacing-and-streaming-stalls)
 
 ## What still breaks
 
