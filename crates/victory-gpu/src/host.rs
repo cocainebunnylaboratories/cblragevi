@@ -7889,7 +7889,17 @@ impl Meter {
             let seconds = sample.elapsed.as_secs_f64();
             let fps = sample.frames as f64 / seconds;
             let p95_ms = sample.p95.as_secs_f64() * 1000.0;
+            use std::fmt::Write as _;
+            let memory = host().and_then(Host::video_memory);
+            let ram_free = available_physical_ram();
+            let gib = |bytes: u64| bytes as f64 / (1u64 << 30) as f64;
             self.window_text = format!(" | {seconds:.1}s avg {fps:.2} fps, p95 {p95_ms:.0} ms");
+            if let Some([budget, used, _, shared]) = memory {
+                let _ = write!(self.window_text, " | VRAM {:.1}/{:.1} GiB, shared {:.1} GiB", gib(used), gib(budget), gib(shared));
+            }
+            if let Some(free) = ram_free {
+                let _ = write!(self.window_text, " | RAM free {:.1} GiB", gib(free));
+            }
             tracing::info!(
                 run_ms = crate::frame::run_elapsed().as_millis() as u64,
                 frames = sample.frames,
@@ -7899,6 +7909,11 @@ impl Meter {
                 max_us = sample.worst.as_micros() as u64,
                 skipped_presents = sample.skipped,
                 width, height,
+                local_used_bytes = memory.map(|m| m[1]),
+                local_budget_bytes = memory.map(|m| m[0]),
+                shared_used_bytes = memory.map(|m| m[3]),
+                ram_free_bytes = ram_free,
+                staging_table_wait_us_total = crate::texture::STAGING_WAIT_US.load(Ordering::Relaxed),
                 "host present window"
             );
         }

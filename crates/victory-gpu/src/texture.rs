@@ -143,7 +143,38 @@ unsafe impl Send for Staging {}
 // SAFETY: as above.
 unsafe impl Sync for Staging {}
 
-static STAGING: Mutex<Option<HashMap<usize, Arc<Staging>>>> = Mutex::new(None);
+type StagingTable = Mutex<HashMap<usize, Arc<Staging>>>;
+
+// Creating a mapped upload buffer can enter the driver. Keep creation and
+// removal of the same texture serialized without blocking unrelated textures.
+static STAGING: std::sync::LazyLock<Vec<StagingTable>> = std::sync::LazyLock::new(|| {
+    let count = if std::env::var("VICTORY_STAGING_SHARDS").as_deref() == Ok("1") { 16 } else { 1 };
+    (0..count).map(|_| Mutex::new(HashMap::new())).collect()
+});
+
+/// Cumulative worker time waiting for per-resource staging table operations.
+#[cfg(feature = "diagnostics")]
+pub(crate) static STAGING_WAIT_US: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn staging_table(resource: usize) -> std::sync::MutexGuard<'static, HashMap<usize, Arc<Staging>>> {
+    // Mix page and sub-page bits because resource objects are aligned.
+    let index = ((resource >> 4) ^ (resource >> 12)) & (STAGING.len() - 1);
+    let table = &STAGING[index];
+    #[cfg(feature = "diagnostics")]
+    {
+        match table.try_lock() {
+            Ok(guard) => return guard,
+            Err(std::sync::TryLockError::Poisoned(e)) => return e.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => {}
+        }
+        let start = std::time::Instant::now();
+        let guard = table.lock().unwrap_or_else(|e| e.into_inner());
+        STAGING_WAIT_US.fetch_add(start.elapsed().as_micros() as u64, std::sync::atomic::Ordering::Relaxed);
+        guard
+    }
+    #[cfg(not(feature = "diagnostics"))]
+    table.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// The buffer a texture the host writes is copied through into the texture
 /// of a view the title placed in its memory in another format
@@ -478,11 +509,7 @@ impl Drop for Staging {
 #[cfg(feature = "diagnostics")]
 pub(crate) fn memory() -> [u64; 3] {
     use std::sync::atomic::Ordering::Relaxed;
-    let kept = STAGING
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-        .map_or(0, |map| map.len() as u64);
+    let kept = STAGING.iter().map(|table| table.lock().unwrap_or_else(|e| e.into_inner()).len() as u64).sum();
     [STAGED[0].load(Relaxed), STAGED[1].load(Relaxed), kept]
 }
 
@@ -506,30 +533,26 @@ pub(crate) fn let_go() -> [u64; 2] {
 pub(crate) fn let_go_idle() {
     use std::sync::atomic::Ordering::Relaxed;
     const IDLE_FRAMES: u64 = 4;
-    let mut map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    let Some(map) = map.as_mut() else {
-        return;
-    };
-    if map.is_empty() {
-        return;
-    }
     let idle_ms = crate::host::ram_idle_ms(crate::host::available_physical_ram());
     // A list that recorded an upload or a check holds the staging until it
     // is reset: one only the table holds is named by no list, recorded or
     // running.
     let (mut went, mut bytes) = (0u64, 0u64);
-    map.retain(|_, s| {
-        let keep = Arc::strong_count(s) > 1
-            || !crate::host::long_ago(s.used.load(Relaxed), idle_ms, IDLE_FRAMES);
-        if !keep {
-            LET_GO[0].fetch_add(1, Relaxed);
-            LET_GO[1].fetch_add(s.bytes, Relaxed);
-            went += 1;
-            bytes += s.bytes;
-        }
-        keep
-    });
+    for table in STAGING.iter() {
+        let mut map = table.lock().unwrap_or_else(|e| e.into_inner());
+        map.retain(|_, s| {
+            let keep = Arc::strong_count(s) > 1
+                || !crate::host::long_ago(s.used.load(Relaxed), idle_ms, IDLE_FRAMES);
+            if !keep {
+                went += 1;
+                bytes += s.bytes;
+            }
+            keep
+        });
+    }
     if went > 0 {
+        LET_GO[0].fetch_add(went, Relaxed);
+        LET_GO[1].fetch_add(bytes, Relaxed);
         crate::host::trail(|| format!("sweep: {went} staging buffers of textures let go ({} KiB), held by no list", bytes >> 10));
     }
 }
@@ -614,10 +637,8 @@ pub(crate) fn host_wrote(resource: usize) -> bool {
 
 /// The title released a resource.
 pub(crate) fn forget(resource: usize) {
-    let mut map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(map) = map.as_mut() {
-        map.remove(&resource);
-    }
+    let mut map = staging_table(resource);
+    map.remove(&resource);
     let mut set = HOST_WRITTEN.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(set) = set.as_mut() {
         set.remove(&resource);
@@ -1194,16 +1215,13 @@ impl Staging {
 /// upload from it hold it until they have run); the next upload makes one
 /// anew.
 pub(crate) fn unstage(resource: This) {
-    let mut map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(map) = map.as_mut() {
-        map.remove(&(resource as usize));
-    }
+    staging_table(resource as usize).remove(&(resource as usize));
 }
 
 /// Where a staged title texture's memory is: address and bytes.
 pub(crate) fn staged_memory(resource: This) -> Option<(u64, u64)> {
-    let map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    let (at, len) = map.as_ref()?.get(&(resource as usize))?.memory();
+    let map = staging_table(resource as usize);
+    let (at, len) = map.get(&(resource as usize))?.memory();
     Some((at as u64, len as u64))
 }
 
@@ -1247,22 +1265,22 @@ pub(crate) fn fingerprint(at: u64, len: u64) -> u64 {
 #[cfg(feature = "diagnostics")]
 pub(crate) fn staged_state(resource: This) -> Option<(bool, bool)> {
     use std::sync::atomic::Ordering::Relaxed;
-    let map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    let staging = map.as_ref()?.get(&(resource as usize))?;
+    let map = staging_table(resource as usize);
+    let staging = map.get(&(resource as usize))?;
     Some((staging.uploaded.load(Relaxed), staging.dirty.load(Relaxed)))
 }
 
 pub(crate) fn is_staged(resource: This) -> bool {
-    let map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    map.as_ref().is_some_and(|map| map.contains_key(&(resource as usize)))
+    let map = staging_table(resource as usize);
+    map.contains_key(&(resource as usize))
 }
 
 /// The bytes of a title texture's memory, and whether all of it is mapped,
 /// if the texture has been staged for upload.
 pub(crate) fn staged(resource: This) -> Option<(u64, bool)> {
     let s = {
-        let map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-        map.as_ref()?.get(&(resource as usize))?.clone()
+        let map = staging_table(resource as usize);
+        map.get(&(resource as usize))?.clone()
     };
     let size = s.layout.size as usize;
     Some((size as u64, committed(s.memory, size)))
@@ -1425,8 +1443,7 @@ fn staging(resource: This, texture: &ID3D12Resource) -> Option<Arc<Staging>> {
     // Asked before the table is locked: the sweep lets go of a staging
     // buffer with its texture's host side locked, in that order.
     let on_demand = crate::resource::host_tiled(resource).is_some();
-    let mut map = STAGING.lock().unwrap_or_else(|e| e.into_inner());
-    let map = map.get_or_insert_with(HashMap::new);
+    let mut map = staging_table(resource as usize);
     if let Some(s) = map.get(&(resource as usize)) {
         return Some(s.clone());
     }

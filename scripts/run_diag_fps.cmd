@@ -15,8 +15,10 @@ if /i "%~1"=="OvernightControl" goto run
 if /i "%~1"=="OvernightFPS" goto run
 if /i "%~1"=="OvernightStreaming" goto run
 if /i "%~1"=="OvernightWater" goto run
+if /i "%~1"=="TuningControl" goto run
+if /i "%~1"=="Tuning5080" goto run
 :usage
-echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker^|TrackerWindows^|OvernightControl^|OvernightFPS^|OvernightStreaming^|OvernightWater "path to save backup"
+echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker^|TrackerWindows^|OvernightControl^|OvernightFPS^|OvernightStreaming^|OvernightWater^|TuningControl^|Tuning5080 "path to save backup"
 exit /b 2
 :run
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_diag.ps1" -Mode Default -PerfCase "%~1" -SaveLocation "%~f2\."
