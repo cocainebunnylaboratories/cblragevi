@@ -79,3 +79,16 @@ The control’s median window p95 was 282 ms moving and 247 ms standing. Both ru
 Async present logged activation near launch and counted 512 queued presents at cumulative frame 1,419 and 1,024 at frame 1,945. The milestones span roughly 120–222 s of uptime, so 512 of the 526 presents between them took the async path. This period includes much of the moving route and the first part of the standing period. Across periodic profiler summaries inside each moving sample, the median queue-settling time charged to the present call fell from 72.15 ms to 0 ms, while median buffer copy time was about 39 ms in both. These are overlapping timers.
 
 The candidate captures `street-214737.png` and `street-214839.png` are archived in the run folder. The title bars show 215 s and 275 s. The standing benchmark ends at the player's approximate 260 s marker. Both show the same intersection and character, with near-black buildings in shade and broad dark bands across the road in the later view. The captures provide a stationary reference for the next replay. [Settings and provenance](5080-tuning.md#phase-4--present-pacing-and-streaming-stalls)
+
+## 21:55 and 22:00 open-world async-present repeat
+
+The reverse-order repeat used the same slot 2 backup, `d77c7395` executable and 3840×2160 output. The player marked the outbound route in each run. After taking a screenshot near the stop sign, the player returned toward the house and closed the window. The return legs fall outside the samples. Both logs record the usual suspend timeout after manual close.
+
+| Run folder | Marked movement | Complete windows | Frames | Seconds | FPS | Draws/frame | Median window p95 | Longest interval |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `fps-rangewaterasync-20261126-215505-006` | 110–210 s | 111.560–208.667 s | 441 | 97.106 | 4.54 | 9,055 | 309 ms | 533 ms |
+| `fps-rangewater-20261126-220038-532` | 90–170 s | 90.280–167.734 s | 348 | 77.453 | 4.49 | 8,413 | 313 ms | 581 ms |
+
+The async log confirmed activation and counted 512 queued presents by about 148 s. Both measured windows had zero skipped presents. Restricting the async sample to the first 80 seconds after its marker gives 344 frames over 76.782 s, or 4.48 FPS with 9,002 draws per frame. The control covered 4.49 FPS over its 80-second marker window. The workloads varied and the first pair’s FPS gain did not replicate. Across the full moving samples, median queue-settling time recorded inside present fell from 45.45 ms to 0 ms, while median buffer copy time stayed around 49–50 ms.
+
+The run folders contain `street-215840.png` (async, 210 s in the title bar) and `street-220333.png` (control, 170 s). Both show the stop-sign intersection with deep shadows across the road and buildings. Camera and character positions differ slightly. Keep `RangeWater` as the baseline and leave the async profile available for later experiments. [Phase 4 decision](5080-tuning.md#phase-4--present-pacing-and-streaming-stalls)
