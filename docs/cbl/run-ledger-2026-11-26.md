@@ -64,3 +64,18 @@ RangeWater run `fps-rangewater-20261126-212528-998` confirmed that slot 2 resume
 | Standing, marked 250–300 s | 253.279–299.189 s | 265 | 45.910 | 5.77 | 8,769 | 522 ms |
 
 Both samples used 3840×2160 output and recorded zero skipped presents. FPS uses total frames divided by elapsed window time. Compare the next pacing candidate against movement on the same route. The standing sample had fewer draws per frame.
+
+## 21:43 open-world async-present trial
+
+Run `fps-rangewaterasync-20261126-214357-712` used the same save and executable hash as the 21:25 control with `VICTORY_ASYNC_PRESENT=1` and explicit `VICTORY_LATE_WAIT=3`. The control already selected stage 3 through its active relay. The player marked movement at about 110–210 s and reported standing afterward. The window was closed manually at 21:48:41 Sydney time, about 4m 44s after launch. The game ran until manual close and then hit the usual one-second suspend timeout.
+
+| Activity | Complete present windows (uptime) | Frames | Seconds | FPS | Draws/frame | Median window p95 | Longest interval |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Moving | 114.393–206.156 s | 484 | 91.764 | 5.27 | 8,496 | 275 ms | 934 ms |
+| Standing | 211.325–257.021 s | 292 | 45.697 | 6.39 | 8,188 | 209 ms | 301 ms |
+
+The control’s median window p95 was 282 ms moving and 247 ms standing. Both runs used 3840×2160 output and recorded zero skipped presents in the measured windows. Draws per frame fell 11.6% during movement and 6.6% while standing in the candidate. The samples show higher average FPS and a longer worst moving hitch. Repeating both profiles at similar draw counts and matching viewpoints will help isolate performance and picture changes.
+
+Async present logged activation near launch and counted 512 queued presents at cumulative frame 1,419 and 1,024 at frame 1,945. The milestones span roughly 120–222 s of uptime, so 512 of the 526 presents between them took the async path. This period includes much of the moving route and the first part of the standing period. Across periodic profiler summaries inside each moving sample, the median queue-settling time charged to the present call fell from 72.15 ms to 0 ms, while median buffer copy time was about 39 ms in both. These are overlapping timers.
+
+The candidate captures `street-214737.png` and `street-214839.png` are archived in the run folder. The title bars show 215 s and 275 s. The standing benchmark ends at the player's approximate 260 s marker. Both show the same intersection and character, with near-black buildings in shade and broad dark bands across the road in the later view. The captures provide a stationary reference for the next replay. [Settings and provenance](5080-tuning.md#phase-4--present-pacing-and-streaming-stalls)
