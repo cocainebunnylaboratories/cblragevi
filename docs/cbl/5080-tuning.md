@@ -4,19 +4,19 @@ Branch `5080-tuning` starts at `e768e19d` on the measured overnight branch. The 
 
 ## Open-world performance replay
 
-Use the open-world manual save from the 20:28 Sydney session for new streaming and frame-time comparisons. The first replay needs to confirm that the manual slot loads into the world as Jason. The same backup contains the earlier autosave.
+Use slot 2, the 20:34:09 Sydney manual save, for new streaming and frame-time comparisons. The player saved outside Jason’s house with Jason ready to move. The first replay will confirm that this exact slot loads there. The 4.32 FPS sample near shutdown is a reference until that route is timed from a fresh load. The backup also contains slot 1 and the story autosave.
 
-1. Start the `RangeWater` profile from Windows PowerShell as the control. Select the manual slot in the load menu.
+1. Start the `RangeWater` profile from Windows PowerShell as the control. Select manual slot 2 in the load menu.
 
    ```powershell
    $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
    $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
-   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-open-world-20261126-202819'
+   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-jason-slot2-20261126-203409'
    & $launch RangeWater $save
    ```
 
 2. Pick two visible landmarks connected by about a minute of continuous movement. A jog on foot is enough for the first comparison. Use a second, fixed driving route for faster streaming once needed. Start the timer at the first landmark and stop at the second. Record the title-bar uptime and capture the same views in each replay.
-3. Replay the same route from a fresh copy of the manual slot with each candidate. Use the same movement mode, path, camera direction, Series X profile, 3840×2160 output and water-readback setting. Flag traffic, pursuit or a loading interruption if it changes the route. Keep the cold load and any stationary time outside the measured movement windows.
+3. Replay the same route from a fresh copy of slot 2 with each candidate. Use the same movement mode, path, camera direction, Series X profile, 3840×2160 output and water-readback setting. Flag traffic, pursuit or a loading interruption if it changes the route. Keep the cold load and any stationary time outside the measured movement windows.
 4. Compare mean rendered FPS, per-window p95, worst interval, draws, texture upload and refusal counts, and system and GPU memory headroom. Review the matched screenshots for missing geometry and texture detail. A candidate needs a repeatable frame-time gain with comparable scene coverage.
 
 Use the opening scripted chase for progression and compatibility checks after a candidate proves useful on the city route. Its measured windows and the original long drive remain historical references. [Manual save and run evidence](run-ledger-2026-11-26.md#open-world-milestone)
@@ -111,7 +111,18 @@ The `Range5080` chase averaged 3.86 FPS, about 259 ms per present interval. Acro
 
 For 6 FPS, the present interval needs to reach 167 ms. At 8 FPS it needs to reach 125 ms. The chase sample therefore needs roughly 92 ms or 134 ms removed from its critical path. Range batching's measured lookup time was under 0.2 ms per rendered frame. That experiment trimmed queue entries and addresses a much smaller cost.
 
-1. Compare a reversible asynchronous-present profile before writing another submission-index optimization. The measured run logged async submission enabled, but the existing async-present path needs late-wait stage 3 and its own switch. Test the combination separately and check dropped presents, draw counts, picture integrity and save progression. Present waits can overlap recording. The buffer copies still execute. [Kelvaroq's measured present changes](https://github.com/fablinoo/kelvaroq#readme)
-2. Measure uploads, staging allocations, system headroom and queue age across the same open-world route. Focus the next streaming experiment on staging reuse and bursts. Keep a delayed texture eligible for a later retry. Compare whether the same view takes longer to acquire its textures.
-3. Review fxceless PR 1237 and Kelvaroq's 0041–0042 and 0045 patches as separate candidates. The lookup cache removes frequent locked buffer lookups. The mesh-launch path removes an indirect clamp and inter-draw waits. The reservation patch amortizes write-watch queries. Their reported numbers use donor workloads and are not additive. [fxceless PR 1237](https://github.com/fxceless/victory-fork/pull/1237) · [Kelvaroq patch measurements](https://github.com/fablinoo/kelvaroq#readme)
-4. Test a limited backing-memory fast path for Phase 5 once alias, visibility and remapping behavior can be checked. Kelvaroq reports reducing copied bytes per frame from over 100 MB to under 8 MB in early scenes on its experimental memory layer. The source gives no chase FPS for that path. Treat copied bytes, submission preparation and matched chase FPS as separate acceptance measures. [Kelvaroq memory notes](https://github.com/fablinoo/kelvaroq#readme)
+## Phase 4 · Present pacing and streaming stalls
+
+Begin with the existing queue settings as a small, reversible experiment. Use the pre-boat save for a short water regression check only after the city result is repeatable.
+
+1. Confirm slot 2 resumes outside the house and pick a route between fixed landmarks. Run `RangeWater` once from a fresh replay and record about 60–90 seconds at 4K output. Use the 65-minute session as the stability reference. Its last 31 seconds averaged 4.32 FPS and 9,253 draws per frame. [Run ledger](run-ledger-2026-11-26.md#open-world-milestone)
+2. After approval, prepare a reversible launcher trial using the staged executable. Keep water readback, texture and submission settings matched. Try `VICTORY_LATE_WAIT=3` with `VICTORY_ASYNC_PRESENT=1`, and confirm the log shows presents actually queued behind the submit worker. The previous run already enabled asynchronous submit. If the combined trial wins, isolate stage 3 with async present off in a follow-up to establish which part helped. [Kelvaroq present measurements](https://github.com/fablinoo/kelvaroq#readme)
+3. Compare the same route and camera views. Require a repeatable FPS gain and no sustained regression in slow frames, missing textures, dropped draws, or memory headroom. Record whether late presents or queue backlog grow. If the first comparison is close, rerun in reverse launch order. Keep the existing profile as the control.
+4. Give a short-route winner a 10–15 minute mixed on-foot and driving check and a short boat regression check. Before promoting it as the recommended profile, repeat an hour-long stress run across movement and transitions. Watch for memory drift, device loss, and the ability to save and reload. If the async trial has little effect or harms stability, return to the existing profile and investigate the biggest staging allocation bursts and buffer copies.
+5. Change staging allocation reuse before imposing a tighter upload limit. Track new allocations, bytes transferred, queue age, and how quickly textures recover after camera turns. A texture deferred by a budget must still be eligible for its later upload. Check the same views under motion and after a short hold.
+
+## Phase 5 · Reduce buffer copies
+
+If a large fraction of city frame time still goes to copying and preparing submissions, port one measured change at a time. Review fxceless PR 1237 as a bounded cache experiment. Kelvaroq's 0041–0042 mesh launch and 0045 write-watch reservation patches are separate candidates with different dependencies. Bring over the smallest compatible change and retain its attribution. [fxceless PR 1237](https://github.com/fxceless/victory-fork/pull/1237) · [Kelvaroq patch measurements](https://github.com/fablinoo/kelvaroq#readme)
+
+Prototype a limited backing-memory fast path only after checking aliasing, write visibility, ordering and remaps. Kelvaroq reports reducing copied bytes per frame from over 100 MB to under 8 MB in its initial scenes with an experimental rewrite. Set a matched city FPS and copied-bytes baseline before porting. Report gains only after testing the same route and preserving the rendering and stability checks from Phase 4. [Kelvaroq memory notes](https://github.com/fablinoo/kelvaroq#readme)
