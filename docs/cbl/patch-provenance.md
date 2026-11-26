@@ -64,9 +64,13 @@ The local performance branches are recorded separately in the [10 FPS experiment
 
 **Other candidates.** Lab 39's second HUD plane expects a compositor and FidelityFX integration absent here. Its fresh-cache prebuild fix targets a command absent from this branch. The larger compute-dispatch port changes the indirect clamp and translator together and needs boundary cases around 65,535 groups on the new clamp. Jonirulah’s revised staged readback conflicts with the newer copy queue and remains available as a separately built experiment. The next native-FPS decision should come from measured frame windows and movement stalls. [HUD port](https://github.com/PastiiJay/klbf-lab-beta/commit/bfbc4d7) · [Dispatch port](https://github.com/PastiiJay/klbf-lab-beta/commit/015af28) · [Readback proposal](https://github.com/fxceless/victory-fork/pull/648)
 
-### Port checklist
+### Series X trial
 
 For the candidate prepared from newer submissions, indirect draws, and water readback, see the commit and author ledger in the [Series X trial notes](overnight-5080.md).
+
+**Streaming comparison.** fxceless added the nonblocking texture refresh in `f85101b6`. CBL commit `cb5cb1d4` adds the opt-in `OvernightStreaming` mode and records its setting. Windows PowerShell verified that it differs from `OvernightFPS` only in `VICTORY_TEXTURE_NO_WAIT`. The recorded FPS comparison predates that switch test. [Donor implementation](https://github.com/fxceless/victory-fork/commit/f85101b6) · [Measured Series X runs](overnight-5080.md#measured-series-x-comparison)
+
+### Port checklist
 
 1. Record the source repo, PR and full donor SHA before changing code. Credit both the author and any downstream port that supplied the implementation.
 2. Use `git cherry-pick -x` for a direct cherry-pick. When adapting a patch, include the source PR and SHA in the commit body and preserve the donor's applicable attribution and license notices. Describe the local changes in the commit.
