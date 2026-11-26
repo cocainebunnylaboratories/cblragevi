@@ -4,19 +4,20 @@ CBL VIctory is a Windows compatibility layer based on Marvisak’s VIctory and f
 
 ## Project status
 
-As of 26 November 2026, the opening interior renders with characters, walls, furnishings and working ceiling lights. A repeat run passed the cashier, reached the exterior under player control and continued into Chapter 1. Some surfaces appear distorted or low-detail, shadowed characters lose detail and the cashier can become severely overexposed. The boat objective remains blocked.
+In the 26 November 2026 playtests on `5080-tuning`, the opening interior renders with characters, furnishings and ceiling lights. With water texture readback enabled, the Chapter 1 boat floats and responds to throttle, and a replay continued into open-world driving and manual saving. Outdoor shadows remain very dark, some surfaces show block artifacts, and water reflections can appear unusually white.
 
-## Renderer changes
+## Renderer changes tested on `5080-tuning`
 
-- **Texture streaming.** CBL’s upload scheduler sorts only the slots a pass can serve. It preserves retry priority and alternates between recent and older writes. PastiiJay’s overflow recovery refreshes texture views when remap records are lost, and myokex’s smaller-mip handling allows partially resident textures to be read. [Implementation credits](docs/cbl/patch-provenance.md)
-- **Graphics and memory.** The renderer incorporates fxceless’s frame scheduling and driver diagnostics, tightfall’s parallel buffer comparison submitted by pug205gti6, and shader and pipeline-library fixes carried by KLBF Lab. LooperSalty’s AnyXboxX stack supplied davutsimsekk’s BC7 dictionary fix and Jordan N’s half-float rounding fix. The provenance record credits the original implementations and downstream ports. [Patch history](docs/cbl/patch-provenance.md)
-- **Diagnostics.** Checkpoint replays record the executable hash and run settings. The diagnostic window shows output resolution, uptime, FPS, draws per frame and p95 frame time. The log records successful presents and elapsed time so a moving route and a stationary view can be measured independently. [Run and measurement guide](results.md)
+- **Texture streaming.** CBL’s upload scheduler sorts only the slots a pass can serve. It preserves retry priority and alternates between recent and older writes. PastiiJay’s overflow recovery refreshes texture views when remap records are lost, and myokex’s smaller-mip handling allows partially resident textures to be read. [Implementation credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/patch-provenance.md)
+- **Graphics and memory.** The renderer incorporates fxceless’s frame scheduling and driver diagnostics, tightfall’s parallel buffer comparison submitted by pug205gti6, and shader and pipeline-library fixes carried by KLBF Lab. LooperSalty’s AnyXboxX stack supplied davutsimsekk’s BC7 dictionary fix and Jordan N’s half-float rounding fix. The provenance record credits the original implementations and downstream ports. [Patch history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/patch-provenance.md)
+- **Water physics.** The boat replay uses Geckomacabre’s GPU texture readback, ported by cxy0072019-sketch, together with PastiiJay’s console XOR texture-addressing port from MiamiGame/XTP and Mesa addrlib. [Water patch credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#boat-readback-replay)
+- **Diagnostics.** Checkpoint replays record the executable hash and run settings. The diagnostic window shows output resolution, uptime, FPS, draws per frame and p95 frame time. The log records successful presents, elapsed time and memory use for scene-by-scene comparison. [Run and measurement guide](results.md)
 
 ## Test results
 
-On a Ryzen 9 9950X3D and GeForce RTX 5080, diagnostic build `cbaef90` on `integrate/community-fps` presented at 3840×2160 with the Series X profile. Measured stretches averaged **3.63–6.39 FPS**, depending on the scene. The repeat passed the previous crash point and ran for **27 min 38 s** before manual close. [Gameplay results](results.md) · [Benchmarks and reproduction steps](docs/cbl/tracker-run.md)
+On Windows with a Ryzen 9 9950X3D and GeForce RTX 5080, diagnostic build `d77c7395` on `5080-tuning` presented at **3840×2160 output** with the Series X profile. The longest recorded session ran **65 min 46 s** from a Chapter 1 checkpoint through the boat sequence into the open world. The player closed the window with no crash or graphics device loss logged during play.
 
-The next tests will replay the boat checkpoint to evaluate water physics and compare submission changes using the same Series X route. [Test plan and donor review](docs/cbl/next-session.md)
+Measured segments averaged **11.42 FPS** with the boat underway, **4.73 FPS** in a late city segment and **4.32 FPS** on foot. A five-second city window dipped to **2.16 FPS**. The session length includes loading and idle time. [Gameplay results](results.md) · [Open-world test plan](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#open-world-performance-replay)
 
 ## Inherited project documentation
 
