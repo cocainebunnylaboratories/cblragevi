@@ -11,7 +11,7 @@ Start on branch `5080-tuning`. On the test PC its linked worktree is `target/dia
 
 ## Sol gameplay handoff
 
-Candidate **91211f60** is staged in the tuning worktree at `target/diag/examples/fps-candidates/mesh-5080/victory.exe`, SHA-256 `2583c7bf79cce39dfc83f2ee83ba323e15a0007c84cd33989515201938f71edb`. Windows GPU and shader suites passed. Gameplay and FPS are pending. Both new launcher cases use this executable. The existing RangeWater executable is available for an independent regression check.
+Candidate **91211f60** is staged in the tuning worktree at `target/diag/examples/fps-candidates/mesh-5080/victory.exe`, SHA-256 `2583c7bf79cce39dfc83f2ee83ba323e15a0007c84cd33989515201938f71edb`. Windows GPU and shader suites passed. The first marked street replay measured 5.68 FPS on MeshControl and 4.28 FPS on MeshLaunch. The player reported worse rendering with MeshLaunch. Keep the ordinary draw path for play. Both new launcher cases use this executable. The existing RangeWater executable is available for an independent regression check. [Replay results](run-ledger-2026-11-26.md#phase-5-street-replay-on-27-november)
 
 From **Windows PowerShell in the main checkout**, warm each mode once, then measure MeshControl followed by MeshLaunch. Repeat in reverse order. Run one case at a time and close its window before starting the next.
 
