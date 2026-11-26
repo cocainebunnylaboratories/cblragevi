@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightWater')]
     [string] $PerfCase
 )
 
@@ -43,8 +43,12 @@ $candidate = switch ($PerfCase) {
     'DrawWindows'     { 'community' }
     'Tracker'         { 'tracker' }
     'TrackerWindows'  { 'tracker' }
+    'OvernightControl' { 'overnight' }
+    'OvernightFPS'     { 'overnight' }
+    'OvernightWater'   { 'overnight' }
 }
-$communityMetrics = $PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows'
+$overnight = $PerfCase -in 'OvernightControl', 'OvernightFPS', 'OvernightWater'
+$communityMetrics = $overnight -or ($PerfCase -in 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows')
 if ($candidate) {
     $candidateDir = Join-Path '.\target\diag\examples\fps-candidates' $candidate
     $exe = Join-Path $candidateDir 'victory.exe'
@@ -96,7 +100,7 @@ if ($Mode -eq 'Depth') { $prefix = 'prison-depth' }
 if ($PerfCase) {
     $prefix = 'fps-' + $PerfCase.ToLowerInvariant()
     if ($communityMetrics) {
-        $env:VICTORY_INDIRECT_WINDOW = if ($PerfCase -in 'DrawWindows', 'TrackerWindows') { '1' } else { '0' }
+        $env:VICTORY_INDIRECT_WINDOW = if ($PerfCase -in 'DrawWindows', 'TrackerWindows', 'OvernightFPS') { '1' } else { '0' }
         $env:VICTORY_COPY_PLAIN = '0'
         $env:VICTORY_QUEUE2 = '0'
         $env:VICTORY_ASYNC_SUBMIT = '0'
@@ -108,7 +112,18 @@ if ($PerfCase) {
         # Use the donor's default staging size and per-flight cap for both experiments.
         Remove-Item Env:VICTORY_CARD_FETCH_INFLIGHT_MB, Env:VICTORY_CARD_FETCH_INFLIGHT_MAX_KB -ErrorAction SilentlyContinue
     }
-    $env:VICTORY_CARD_REHASH_RUNS = if ($PerfCase -eq 'BatchRehash') { '1' } else { '0' }
+    $env:VICTORY_CARD_REHASH_RUNS = if ($PerfCase -in 'BatchRehash', 'OvernightFPS') { '1' } else { '0' }
+    if ($overnight) {
+        if ($PerfCase -eq 'OvernightFPS') {
+            $env:VICTORY_COPY_PLAIN = '1'
+            $env:VICTORY_QUEUE2 = '1'
+            $env:VICTORY_ASYNC_SUBMIT = '1'
+        }
+        $env:VICTORY_JOIN_PARTS = if ($PerfCase -eq 'OvernightFPS') { '1' } else { '0' }
+        $env:VICTORY_BACK_OWN_VIEW = $env:VICTORY_JOIN_PARTS
+        $env:VICTORY_INDIRECT_GATHER = $env:VICTORY_JOIN_PARTS
+        $env:VICTORY_TEXTURE_BACK = if ($PerfCase -eq 'OvernightWater') { '1' } else { '0' }
+    }
 }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 $run = Join-Path $PWD "target\diag\examples\$prefix-$stamp"
@@ -135,6 +150,12 @@ if ($PerfCase) {
             "VICTORY_ASYNC_SUBMIT=$env:VICTORY_ASYNC_SUBMIT"
             "VICTORY_FRAME_LOG=$env:VICTORY_FRAME_LOG"
             "VICTORY_DRIVER_WATCH=$env:VICTORY_DRIVER_WATCH"
+        }
+        if ($overnight) {
+            "VICTORY_JOIN_PARTS=$env:VICTORY_JOIN_PARTS"
+            "VICTORY_BACK_OWN_VIEW=$env:VICTORY_BACK_OWN_VIEW"
+            "VICTORY_INDIRECT_GATHER=$env:VICTORY_INDIRECT_GATHER"
+            "VICTORY_TEXTURE_BACK=$env:VICTORY_TEXTURE_BACK"
         }
     ) | Set-Content -LiteralPath (Join-Path $run 'settings.txt')
 }

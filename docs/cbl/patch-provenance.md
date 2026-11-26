@@ -66,6 +66,8 @@ The local performance branches are recorded separately in the [10 FPS experiment
 
 ### Port checklist
 
+For the candidate prepared from newer submissions, indirect draws, and water readback, see the commit and author ledger in the [Series X trial notes](overnight-5080.md).
+
 1. Record the source repo, PR and full donor SHA before changing code. Credit both the author and any downstream port that supplied the implementation.
 2. Use `git cherry-pick -x` for a direct cherry-pick. When adapting a patch, include the source PR and SHA in the commit body and preserve the donor's applicable attribution and license notices. Describe the local changes in the commit.
 3. Update this ledger with the local SHA and the result of the local comparison. Keep candidate and merged status explicit. Cite run reports as test evidence and credit the tester separately.
