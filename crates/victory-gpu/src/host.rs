@@ -8103,6 +8103,7 @@ impl Meter {
                 );
             }
             crate::tiles::status();
+            crate::descriptor::host::log_texture_range_stats();
             {
                 let [queued, due, away, partly, oldest] =
                     [0, 1, 2, 3, 4].map(|i| crate::draw::HEAP_TEXTURES_QUEUE[i].load(Ordering::Relaxed));

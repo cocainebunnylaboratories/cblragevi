@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl')]
     [string] $PerfCase
 )
 
@@ -47,13 +47,16 @@ $candidate = switch ($PerfCase) {
     'Submission5080'    { 'submission-5080' }
     'SubmissionVerify'  { 'submission-5080' }
     'SubmissionControl' { 'submission-5080' }
+    'Range5080'         { 'range-5080' }
+    'RangeControl'      { 'range-5080' }
     'Tuning5080'        { '5080-tuning' }
     'OvernightControl' { 'overnight' }
     'OvernightFPS'     { 'overnight' }
     'OvernightStreaming' { 'overnight' }
     'OvernightWater'   { 'overnight' }
 }
-$submission = $PerfCase -in 'Submission5080', 'SubmissionVerify', 'SubmissionControl'
+$rangeTrial = $PerfCase -in 'Range5080', 'RangeControl'
+$submission = $rangeTrial -or $PerfCase -in 'Submission5080', 'SubmissionVerify', 'SubmissionControl'
 $tuning = $submission -or ($PerfCase -in 'TuningControl', 'Tuning5080')
 $overnightFast = $tuning -or ($PerfCase -in 'OvernightFPS', 'OvernightStreaming')
 $overnight = $overnightFast -or ($PerfCase -in 'OvernightControl', 'OvernightWater')
@@ -133,8 +136,15 @@ if ($PerfCase) {
         $env:VICTORY_INDIRECT_GATHER = $env:VICTORY_JOIN_PARTS
         $env:VICTORY_STEP_INDEX = if ($submission -or $PerfCase -eq 'Tuning5080') { '1' } else { '0' }
         $env:VICTORY_SUBMISSION_INDEX = switch ($PerfCase) {
+            'Range5080' { '1' }
+            'RangeControl' { '1' }
             'Submission5080' { '1' }
             'SubmissionVerify' { 'verify' }
+            default { '0' }
+        }
+        $env:VICTORY_TEXTURE_RANGE_BATCH = switch ($PerfCase) {
+            'Range5080' { '1' }
+            'RangeControl' { 'measure' }
             default { '0' }
         }
         $env:VICTORY_STAGING_SHARDS = $env:VICTORY_STEP_INDEX
@@ -178,6 +188,7 @@ if ($PerfCase) {
             "VICTORY_BACK_OWN_VIEW=$env:VICTORY_BACK_OWN_VIEW"
             "VICTORY_INDIRECT_GATHER=$env:VICTORY_INDIRECT_GATHER"
             "VICTORY_SUBMISSION_INDEX=$env:VICTORY_SUBMISSION_INDEX"
+            "VICTORY_TEXTURE_RANGE_BATCH=$env:VICTORY_TEXTURE_RANGE_BATCH"
             "VICTORY_STEP_INDEX=$env:VICTORY_STEP_INDEX"
             "VICTORY_STAGING_SHARDS=$env:VICTORY_STAGING_SHARDS"
             "VICTORY_TEXTURE_BACK=$env:VICTORY_TEXTURE_BACK"
