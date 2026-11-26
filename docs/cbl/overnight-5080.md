@@ -28,3 +28,15 @@ $save = (Get-Content -LiteralPath $prior | Where-Object { $_ -like 'save=*' } | 
 Close each run normally. Hold the same doorway view and repeat the same hallway route. Record uptime at control, movement, pauses and scene transitions. Compare average FPS, p95, successful presents, draws per frame and visible picture. Use `OvernightControl` on the same save if the bundle regresses or to separate code changes from the switch set. The launcher records the switches, build revision and executable hash.
 
 For the boat, supply the newest backup location to `OvernightWater` and `OvernightControl` in two fresh replays. Check for movement, wake and objective progression. Keep the original backup and raw captures local. After a successful short test, use the better-performing profile for a longer playthrough and record the end condition. [Run measurements](tracker-run.md)
+
+## Post-cashier streaming stalls
+
+In the completed `OvernightFPS` run at 3840×2160 output, complete present windows within 585–630 s averaged **1.47 FPS**, those within 630–675 s averaged **0.97 FPS**, and those within 765–810 s averaged **1.98 FPS**. The player reported overexposed cutscenes and severe slowdown during the post-cashier chase. The route was closed by hand near 830 s. The earlier build also exhibited severe overexposure in this encounter. The available logs do not identify an exposure or lighting pass that explains the image.
+
+At about 637 s, a 6.02 s frame spent 2.89 s waiting for texture memory to settle while the GPU logged 5.96 s idle. No pipeline wait was recorded in that frame. During the later chase intervals, frames near 783 and 816 s spent 1.26 and 1.57 s waiting for texture memory. The timing counters overlap. Frequent remaps and streaming reads accompanied both stalls.
+
+```powershell
+& "$trial\scripts\run_diag_fps.cmd" OvernightStreaming "$save"
+```
+
+`OvernightStreaming` uses the same staged executable, save and FPS switches as `OvernightFPS`, with fxceless’s `VICTORY_TEXTURE_NO_WAIT=1` enabled. The existing runtime takes a nonblocking mapping-lock attempt and falls back to a kernel read when the lock is busy. A refresh that cannot read all required pages leaves the previous texture in place for a later retry. Compare the same scene markers through the cashier and chase. Record refresh waits, frames per second, stalls and visible texture pop-in. A faster run with persistent missing textures fails the image check. Keep this replay separate from `OvernightWater`. [Donor change](https://github.com/fxceless/victory-fork/commit/f85101b6)
