@@ -2,7 +2,26 @@
 
 Branch `5080-tuning` starts at `e768e19d` on the measured overnight branch. The Windows diagnostic executable was built at `1696c6288055470d171b7f23f4ebb55578af9e59`. SHA-256 is `6b922857643ded74a683d7c8b5e9885b94601ad97d9d079f4cccd1aa68b3c679`. Both tuning profiles use that executable, the Series X configuration, the overnight FPS switches and nonblocking texture refresh. The original overnight executable remains available in its own launcher profiles. [Overnight measurements and patch credits](overnight-5080.md)
 
-## What the last replay showed
+## Open-world performance replay
+
+Use the open-world manual save from the 20:28 Sydney session for new streaming and frame-time comparisons. The first replay needs to confirm that the manual slot loads into the world as Jason. The same backup contains the earlier autosave.
+
+1. Start the `RangeWater` profile from Windows PowerShell as the control. Select the manual slot in the load menu.
+
+   ```powershell
+   $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
+   $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
+   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-open-world-20261126-202819'
+   & $launch RangeWater $save
+   ```
+
+2. Pick two visible landmarks connected by about a minute of continuous movement. A jog on foot is enough for the first comparison. Use a second, fixed driving route for faster streaming once needed. Start the timer at the first landmark and stop at the second. Record the title-bar uptime and capture the same views in each replay.
+3. Replay the same route from a fresh copy of the manual slot with each candidate. Use the same movement mode, path, camera direction, Series X profile, 3840×2160 output and water-readback setting. Flag traffic, pursuit or a loading interruption if it changes the route. Keep the cold load and any stationary time outside the measured movement windows.
+4. Compare mean rendered FPS, per-window p95, worst interval, draws, texture upload and refusal counts, and system and GPU memory headroom. Review the matched screenshots for missing geometry and texture detail. A candidate needs a repeatable frame-time gain with comparable scene coverage.
+
+Use the opening scripted chase for progression and compatibility checks after a candidate proves useful on the city route. Its measured windows and the original long drive remain historical references. [Manual save and run evidence](run-ledger-2026-11-26.md#open-world-milestone)
+
+## Overnight replay
 
 The 9950X3D and RTX 5080 presented at 3840×2160. The overnight bundle raised the matched doorway average from 5.14 to 8.07 FPS. The player reported that the chase felt better with nonblocking texture refresh. The table uses frames divided by elapsed time across complete present windows. Uptime alone cannot align the two playthroughs to the same chase frames.
 
@@ -93,6 +112,6 @@ The `Range5080` chase averaged 3.86 FPS, about 259 ms per present interval. Acro
 For 6 FPS, the present interval needs to reach 167 ms. At 8 FPS it needs to reach 125 ms. The chase sample therefore needs roughly 92 ms or 134 ms removed from its critical path. Range batching's measured lookup time was under 0.2 ms per rendered frame. That experiment trimmed queue entries and addresses a much smaller cost.
 
 1. Compare a reversible asynchronous-present profile before writing another submission-index optimization. The measured run logged async submission enabled, but the existing async-present path needs late-wait stage 3 and its own switch. Test the combination separately and check dropped presents, draw counts, picture integrity and save progression. Present waits can overlap recording. The buffer copies still execute. [Kelvaroq's measured present changes](https://github.com/fablinoo/kelvaroq#readme)
-2. Measure uploads, staging allocations, system headroom and queue age across the same chase. Focus the next streaming experiment on staging reuse and bursts. Keep a delayed texture eligible for a later retry. Compare whether the same view takes longer to acquire its textures.
+2. Measure uploads, staging allocations, system headroom and queue age across the same open-world route. Focus the next streaming experiment on staging reuse and bursts. Keep a delayed texture eligible for a later retry. Compare whether the same view takes longer to acquire its textures.
 3. Review fxceless PR 1237 and Kelvaroq's 0041–0042 and 0045 patches as separate candidates. The lookup cache removes frequent locked buffer lookups. The mesh-launch path removes an indirect clamp and inter-draw waits. The reservation patch amortizes write-watch queries. Their reported numbers use donor workloads and are not additive. [fxceless PR 1237](https://github.com/fxceless/victory-fork/pull/1237) · [Kelvaroq patch measurements](https://github.com/fablinoo/kelvaroq#readme)
 4. Test a limited backing-memory fast path for Phase 5 once alias, visibility and remapping behavior can be checked. Kelvaroq reports reducing copied bytes per frame from over 100 MB to under 8 MB in early scenes on its experimental memory layer. The source gives no chase FPS for that path. Treat copied bytes, submission preparation and matched chase FPS as separate acceptance measures. [Kelvaroq memory notes](https://github.com/fablinoo/kelvaroq#readme)
