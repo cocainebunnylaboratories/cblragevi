@@ -132,8 +132,13 @@ $log = Join-Path $run 'boot.log'
 Write-Host "Boot log $log"
 
 $revision = Join-Path $run 'revision.txt'
-git rev-parse HEAD | Set-Content -LiteralPath $revision
-git status --short | Add-Content -LiteralPath $revision
+if ($candidate -and (Test-Path -LiteralPath '.git' -PathType Leaf)) {
+    # Windows Git may not resolve the WSL pointer in a linked worktree.
+    $binaryRevision | Set-Content -LiteralPath $revision
+} else {
+    git rev-parse HEAD | Set-Content -LiteralPath $revision
+    git status --short | Add-Content -LiteralPath $revision
+}
 if ($PerfCase) {
     @(
         "case=$PerfCase"
