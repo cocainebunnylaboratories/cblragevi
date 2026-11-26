@@ -80,3 +80,13 @@ For the candidate prepared from newer submissions, indirect draws, and water rea
 ## RTX 5080 submission and staging trial
 
 The [5080 tuning report](5080-tuning.md) records fxceless’s submission index, CBL’s staging-table changes and diagnostics, donor review, executable identity and replay procedure.
+
+## Phase 5 mesh launch review
+
+- **Stellarr Studio SAS (Kelvaroq)** credits Moon AI for its development. Reviewed snapshot `e6d27b00286d55e55986f824d5f26f5f4e5d10ab`. Patch 0041 contains both the amplification-stage mesh launch and the wide hash. Patch 0042 adds indirect clamp and abandoned-merge counters. CBL integration `91211f60` adds opt-in launcher profiles, an argument-producer barrier, writer-aware gather closure, remaining clamp counters, list ownership of fallback pipelines and a mixed counted-draw hardware test. Gameplay results are pending. [0041 source](https://github.com/fablinoo/kelvaroq/blob/e6d27b00286d55e55986f824d5f26f5f4e5d10ab/native/patches/0041-mesh-launch-wide-hash.patch) · [0042 source](https://github.com/fablinoo/kelvaroq/blob/e6d27b00286d55e55986f824d5f26f5f4e5d10ab/native/patches/0042-clamp-merge-counters.patch) · [Project credits](https://github.com/fablinoo/kelvaroq#readme)
+- **tightfall**, submitted by **pug205gti6**, authored the wide compare already carried as `07e713e4` in baseline `d77c7395`. Both hash and compare dispatch one group per 64 KiB piece. Preserve the credits and co-author trailer listed above. [Original change](https://github.com/fxceless/victory-fork/commit/3c3ce86732d7d0b1a9c2aa88fe3728e3042a051e)
+- The [tracker review](5080-tuning.md#standings-checked-26-november-2026-at-1154-utc) credits the projects reporting measurements. The 7900 XTX switches are leads only. Identify individual authors, exact commits and downstream fixes before any port.
+
+### KLBF follow-up provenance
+
+PastiiJay’s klbf-lab is the measurement and launcher source, with main README `aadedf31` and Lab 61 beta-2 `74a7e383`. The source labels after-writer clamping as Neptune work. The constants and descriptor switches are also documented by VIctory-7900XTX. Trace original implementation commits and author trailers before any port. KLBF credits AMD’s FidelityFX SDK and distinguishes its integration from the upstream renderer. The candidate contains no KLBF implementation. [Pinned launcher](https://github.com/PastiiJay/klbf-lab/blob/74a7e38358898b0ec698dc4ae9cfd848bab06525/play.ps1) · [KLBF project credits](https://github.com/PastiiJay/klbf-lab/blob/aadedf31ef1e868927677a8b5b5816f8b83e4179/README.md#credits) · [Compatibility plan](5080-tuning.md#klbf-integration-review)

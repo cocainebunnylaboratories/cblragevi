@@ -9,6 +9,21 @@ Start on branch `5080-tuning`. On the test PC its linked worktree is `target/dia
 - Manual slot 2 in the external backup `C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-jason-slot2-20261126-203409` resumes outside Jason’s house. The launcher copies the backup to a separate replay. The user runs the game and supplies movement markers. Leave the game installation untouched. [PowerShell replay command](5080-tuning.md#open-world-performance-replay)
 - Evidence lives under the tuning worktree’s `target/diag/examples`. The last pair is `fps-rangewaterasync-20261126-215505-006` and `fps-rangewater-20261126-220038-532`. Use settings.txt and revision.txt for identity and targeted UTF-16LE boot.log searches for host present windows inside the marked outbound route. Stop-sign captures are archived with each run. [Run ledger](run-ledger-2026-11-26.md#2155-and-2200-open-world-async-present-repeat)
 
-## Next work
+## Sol gameplay handoff
 
-Phase 5 begins with Kelvaroq’s mesh launch and GPU hashing compatibility review. Implementation awaits user approval. Keep original patch authors, donor revisions, adaptations and hardware results with each trial. The user wants a handoff to Sol after coding for gameplay analysis. [Phase 5 plan](5080-tuning.md#phase-5--reduce-buffer-copies) · [Patch provenance](patch-provenance.md)
+Candidate **91211f60** is staged in the tuning worktree at `target/diag/examples/fps-candidates/mesh-5080/victory.exe`, SHA-256 `2583c7bf79cce39dfc83f2ee83ba323e15a0007c84cd33989515201938f71edb`. Windows GPU and shader suites passed. Gameplay and FPS are pending. Both new launcher cases use this executable. The existing RangeWater executable is available for an independent regression check.
+
+From **Windows PowerShell in the main checkout**, warm each mode once, then measure MeshControl followed by MeshLaunch. Repeat in reverse order. Run one case at a time and close its window before starting the next.
+
+```powershell
+$env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
+$launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
+$save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-jason-slot2-20261126-203409'
+& $launch MeshControl $save
+# After closing the control, launch the candidate from the same shell.
+& $launch MeshLaunch $save
+```
+
+Load manual slot 2. Use the same outbound route from Jason’s house to the stop sign, movement speed and camera. Tell Sol the title-bar uptimes at start and finish and save a capture at the sign. The launcher makes a fresh replay from the backup each time. Exclude standing and the return leg.
+
+**Sol:** read each new `fps-meshcontrol-*` or `fps-meshlaunch-*` folder’s settings, revision and UTF-16LE boot log. Confirm matching binary hash, water readback on, async present off, and mesh launch 0/1. Look for “mesh draws launched by the card per frame”. The record count is successful recorded launches, the single-record count is the candidate shape before runtime checks, and clamp passes count ordinary in-list clamps. Also check dropped draws, queue timings and refusal messages. Compare complete present windows inside the markers, scene coverage, GPU memory, water, glass and stop-sign geometry. Report both orders and any load or traffic mismatch before attributing a gain. [Validation ledger](run-ledger-2026-11-26.md#phase-5-candidate-validation) · [Follow-up candidates](5080-tuning.md#klbf-integration-review)

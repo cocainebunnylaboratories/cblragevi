@@ -92,3 +92,17 @@ The reverse-order repeat used the same slot 2 backup, `d77c7395` executable and 
 The async log confirmed activation and counted 512 queued presents by about 148 s. Both measured windows had zero skipped presents. Restricting the async sample to the first 80 seconds after its marker gives 344 frames over 76.782 s, or 4.48 FPS with 9,002 draws per frame. The control covered 4.49 FPS over its 80-second marker window. The workloads varied and the first pair’s FPS gain did not replicate. Across the full moving samples, median queue-settling time recorded inside present fell from 45.45 ms to 0 ms, while median buffer copy time stayed around 49–50 ms.
 
 The run folders contain `street-215840.png` (async, 210 s in the title bar) and `street-220333.png` (control, 170 s). Both show the stop-sign intersection with deep shadows across the road and buildings. Camera and character positions differ slightly. Keep `RangeWater` as the baseline and leave the async profile available for later experiments. [Phase 4 decision](5080-tuning.md#phase-4--present-pacing-and-streaming-stalls)
+
+## Phase 5 baseline review
+
+Read-only analysis of the existing 22:00 RangeWater control on RTX 5080 and Ryzen 9 9950X3D. The staged reference executable matched SHA-256 `a59fc6823ecb5383fb906990ed6c03099d4de46f868f76ec8afea5ca4648698a` and the run's revision file records `d77c7395b20a2ca7edc9eda13587de024519ecdb`. Source review used tuning HEAD `0d3ac72a`.
+
+To reproduce the mesh count, read the UTF-16LE `fps-rangewater-20261126-220038-532/boot.log` under the worktree’s `target/diag/examples`. Select timestamps from 11:02:10 UTC inclusive to 11:03:25 UTC exclusive. Count lines containing “a window miss (one in 256)” and classify by the kind immediately following the cause. Kind 10 is mesh in `crates/victory-gpu/src/draw.rs`. Of 4,116 sampled misses, 3,344 (81.2%) were mesh. This is a share of sampled misses across 75 seconds within the outbound route. It does not establish eligibility for launch, GPU time saved or a fraction of all draws.
+
+At 11:02:30 UTC one profiler summary recorded 274 hash passes over 1,094 pieces and 94 compare passes per frame. The copy queue fetched 66.9 MB/frame in that summary. For route-wide FPS, frame-time tails and copy timing, use the matched windows in the preceding repeat entry. No Phase 5 candidate has been measured.
+
+## Phase 5 candidate validation
+
+Local candidate `91211f60`, SHA-256 `2583c7bf79cce39dfc83f2ee83ba323e15a0007c84cd33989515201938f71edb`. The Windows diagnostic build completed with the locked offline dependencies. The focused D3D12 test passed for direct count, single records, zero dimension, 65,535 cap, list budget exhaustion and switching from launch to a counted multi-record call and back. The GPU suite passed 210 with 8 ignored. The shader suite passed 217 with 3 ignored. Output is local at `target/diag/mesh-5080-tests.log`.
+
+PowerShell profile checks confirmed MeshControl and MeshLaunch choose mesh-5080 with the expected 0/1 setting, async submission and water enabled and async present off. RangeWater and RangeWaterAsync still choose the original range-5080 executable, whose SHA-256 matched the handoff. The staged executable resolved the game directory with the main checkout’s victory.toml. Measured city results await the player's markers. [Sol replay sheet](HANDOFF.md#sol-gameplay-handoff)
