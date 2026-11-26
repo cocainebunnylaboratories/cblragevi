@@ -76,3 +76,7 @@ For the candidate prepared from newer submissions, indirect draws, and water rea
 2. Use `git cherry-pick -x` for a direct cherry-pick. When adapting a patch, include the source PR and SHA in the commit body and preserve the donor's applicable attribution and license notices. Describe the local changes in the commit.
 3. Update this ledger with the local SHA and the result of the local comparison. Keep candidate and merged status explicit. Cite run reports as test evidence and credit the tester separately.
 4. Before publishing, include these contributor credits in the repo's public acknowledgments and link this ledger for detail.
+
+## RTX 5080 submission and staging trial
+
+The [5080 tuning report](5080-tuning.md) records fxceless’s submission index, CBL’s staging-table changes and diagnostics, donor review, executable identity and replay procedure.
