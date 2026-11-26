@@ -26,8 +26,11 @@ if /i "%~1"=="RangeWater" goto run
 if /i "%~1"=="MeshLaunch" goto run
 if /i "%~1"=="MeshControl" goto run
 if /i "%~1"=="RangeWaterAsync" goto run
+if /i "%~1"=="AmbientControl" goto run
+if /i "%~1"=="Ambient5080" goto run
+if /i "%~1"=="AmbientTiming" goto run
 :usage
-echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker^|TrackerWindows^|OvernightControl^|OvernightFPS^|OvernightStreaming^|OvernightWater^|TuningControl^|Tuning5080^|Submission5080^|SubmissionVerify^|SubmissionControl^|Range5080^|RangeControl^|RangeWater^|RangeWaterAsync^|MeshLaunch^|MeshControl "path to save backup"
+echo Usage: %~nx0 Baseline^|BatchRehash^|ParallelCompare^|StagedReadback^|Combined^|Community^|TextureQueue^|DrawWindows^|Tracker^|TrackerWindows^|OvernightControl^|OvernightFPS^|OvernightStreaming^|OvernightWater^|TuningControl^|Tuning5080^|Submission5080^|SubmissionVerify^|SubmissionControl^|Range5080^|RangeControl^|RangeWater^|RangeWaterAsync^|MeshLaunch^|MeshControl^|AmbientControl^|Ambient5080^|AmbientTiming "path to save backup"
 exit /b 2
 :run
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_diag.ps1" -Mode Default -PerfCase "%~1" -SaveLocation "%~f2\."

@@ -1395,6 +1395,14 @@ fn hosted(this: This, make: bool) -> Option<Made> {
     made.clone()
 }
 
+/// Holds a host texture through recording, even if the resource mapping changes.
+#[cfg(windows)]
+pub(crate) fn ambient_texture(this: This) -> Option<windows::Win32::Graphics::Direct3D12::ID3D12Resource> {
+    if this.is_null() { return None; }
+    let (texture, _) = hosted(this, false)?;
+    Some(texture.texture.clone())
+}
+
 /// The host copy of title texture `this` if it is made, without making it
 /// (for diagnostics, which must not count as a use).
 #[cfg(all(windows, feature = "diagnostics"))]
