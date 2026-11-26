@@ -53,3 +53,14 @@ The window closed at 20:35:37 Sydney time, about 3945.8 s after launch. The runt
 The 18:57 run confirms another 4K-output replay from the opening save through the chase to the boat, with about 28 minutes of process uptime and a manual close. List FPS by scene and retain the exterior rendering defects. The `RangeWater` replay confirms the boat can be driven and that the session proceeded to an open-world manual save. Use 11.42 FPS over 25.4 seconds for underway boat play and 4.73 FPS over 97.7 seconds for the late city segment. Report the longer process uptime separately so that loading and idle time are transparent. [Launcher settings and readback credits](5080-tuning.md#boat-readback-replay)
 
 New FPS comparisons use the open-world manual slot. Use the same movement route on foot or behind the wheel and match the views for each candidate. Count a patch as an improvement when it speeds up the route and preserves the visible scene. [Open-world replay procedure](5080-tuning.md#open-world-performance-replay)
+
+## 21:25 open-world control from manual slot 2
+
+RangeWater run `fps-rangewater-20261126-212528-998` confirmed that slot 2 resumes outside Jason’s house. The user reported the initial blue tint cleared after gaining control and closed the run manually. Three captures in the run folder are named by local time (21:28:00, 21:29:40 and 21:30:32).
+
+| Activity | Complete present windows (uptime) | Frames | Seconds | FPS | Draws/frame | Longest interval |
+|---|---|---:|---:|---:|---:|---:|
+| Moving, marked ~140–250 s | 141.119–248.270 s | 521 | 107.151 | 4.86 | 9,606 | 762 ms |
+| Standing, marked 250–300 s | 253.279–299.189 s | 265 | 45.910 | 5.77 | 8,769 | 522 ms |
+
+Both samples used 3840×2160 output and recorded zero skipped presents. FPS uses total frames divided by elapsed window time. Compare the next pacing candidate against movement on the same route. The standing sample had fewer draws per frame.
