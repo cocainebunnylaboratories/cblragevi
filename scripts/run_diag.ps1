@@ -8,7 +8,7 @@ param(
 
     [string] $SaveLocation,
 
-    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl')]
+    [ValidateSet('Baseline', 'BatchRehash', 'ParallelCompare', 'StagedReadback', 'Combined', 'Community', 'TextureQueue', 'DrawWindows', 'Tracker', 'TrackerWindows', 'OvernightControl', 'OvernightFPS', 'OvernightStreaming', 'OvernightWater', 'TuningControl', 'Tuning5080', 'Submission5080', 'SubmissionVerify', 'SubmissionControl', 'Range5080', 'RangeControl', 'RangeWater')]
     [string] $PerfCase
 )
 
@@ -49,13 +49,14 @@ $candidate = switch ($PerfCase) {
     'SubmissionControl' { 'submission-5080' }
     'Range5080'         { 'range-5080' }
     'RangeControl'      { 'range-5080' }
+    'RangeWater'        { 'range-5080' }
     'Tuning5080'        { '5080-tuning' }
     'OvernightControl' { 'overnight' }
     'OvernightFPS'     { 'overnight' }
     'OvernightStreaming' { 'overnight' }
     'OvernightWater'   { 'overnight' }
 }
-$rangeTrial = $PerfCase -in 'Range5080', 'RangeControl'
+$rangeTrial = $PerfCase -in 'Range5080', 'RangeControl', 'RangeWater'
 $submission = $rangeTrial -or $PerfCase -in 'Submission5080', 'SubmissionVerify', 'SubmissionControl'
 $tuning = $submission -or ($PerfCase -in 'TuningControl', 'Tuning5080')
 $overnightFast = $tuning -or ($PerfCase -in 'OvernightFPS', 'OvernightStreaming')
@@ -137,6 +138,7 @@ if ($PerfCase) {
         $env:VICTORY_STEP_INDEX = if ($submission -or $PerfCase -eq 'Tuning5080') { '1' } else { '0' }
         $env:VICTORY_SUBMISSION_INDEX = switch ($PerfCase) {
             'Range5080' { '1' }
+            'RangeWater' { '1' }
             'RangeControl' { '1' }
             'Submission5080' { '1' }
             'SubmissionVerify' { 'verify' }
@@ -144,11 +146,12 @@ if ($PerfCase) {
         }
         $env:VICTORY_TEXTURE_RANGE_BATCH = switch ($PerfCase) {
             'Range5080' { '1' }
+            'RangeWater' { '1' }
             'RangeControl' { 'measure' }
             default { '0' }
         }
         $env:VICTORY_STAGING_SHARDS = $env:VICTORY_STEP_INDEX
-        $env:VICTORY_TEXTURE_BACK = if ($PerfCase -eq 'OvernightWater') { '1' } else { '0' }
+        $env:VICTORY_TEXTURE_BACK = if ($PerfCase -in 'OvernightWater', 'RangeWater') { '1' } else { '0' }
         $env:VICTORY_TEXTURE_NO_WAIT = if ($tuning -or $PerfCase -eq 'OvernightStreaming') { '1' } else { '0' }
     }
 }
