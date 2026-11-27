@@ -59,7 +59,7 @@ At the **27 November 00:18 Sydney** snapshot, CBL ranked 10th at stage 6 with pi
 
 ## Running and recording the next comparison
 
-From **Windows PowerShell on the test PC**, run the existing control with the following commands. The player loads manual slot 2, jogs from Jason's house to the stop sign, notes title-bar uptimes at both ends and captures the scene. The launcher copies the external backup to a timestamped replay. Warm each mode once on that route, close normally between runs, then measure both modes on the same build. Ordinary same-build profiles share the persistent cache. Compare a promising result in reverse order.
+From **Windows PowerShell on the test PC**, run the existing control with the following commands. The player loads manual slot 2, jogs from the residence to the stop sign, notes title-bar uptimes at both ends and captures the scene. The launcher copies the external backup to a timestamped replay. Warm each mode once on that route, close normally between runs, then measure both modes on the same build. Ordinary same-build profiles share the persistent cache. Compare a promising result in reverse order.
 
 ```powershell
 cd 'C:\path\to\checkout'

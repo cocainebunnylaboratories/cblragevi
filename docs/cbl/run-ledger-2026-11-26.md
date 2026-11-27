@@ -42,9 +42,9 @@ The player reported that textures generally loaded while driving in the city, wi
 
 At 20:28:19 Sydney time, around 3508 s uptime, the replay committed a new manual story slot. The backup `open-world-snapshot` contains 13 files, all verified against the active replay, including the new manual slot and the earlier story autosave. The 20:28 snapshot remains available as an earlier city save.
 
-At 20:34:09 Sydney time, around 3858 s uptime, the player wrote manual slot 2 just outside Jason’s house. The backup `slot-2-snapshot` contains 16 files, all verified against the replay at copy time. It includes both manual saves and the latest story autosave. Slot 2 is the new performance baseline. The exact reload position remains to be verified. A comparison after shutdown still matched the backed-up save files.
+At 20:34:09 Sydney time, around 3858 s uptime, the player wrote manual slot 2 just outside the residence. The backup `slot-2-snapshot` contains 16 files, all verified against the replay at copy time. It includes both manual saves and the latest story autosave. Slot 2 is the new performance baseline. The exact reload position remains to be verified. A comparison after shutdown still matched the backed-up save files.
 
-The final marked sample averaged 9,253 draws per frame, with no skipped presents and a median of 311 ms across the six window p95 values. Sampled local GPU use peaked at 12.53 GiB, shared use peaked at 6.60 GiB, local budget headroom reached 1.38 GiB and free system RAM reached 1.50 GiB. The screenshot at 3935 s shows the street, foliage, vehicle and character drawing, with dark shaded surfaces and patches of black on the character. The screenshot is archived locally as `jason-street-3935s.png` in the run folder.
+The final marked sample averaged 9,253 draws per frame, with no skipped presents and a median of 311 ms across the six window p95 values. Sampled local GPU use peaked at 12.53 GiB, shared use peaked at 6.60 GiB, local budget headroom reached 1.38 GiB and free system RAM reached 1.50 GiB. The screenshot at 3935 s shows the street, foliage, vehicle and character drawing, with dark shaded surfaces and patches of black on the character. The street screenshot is archived locally in the run folder.
 
 The window closed at 20:35:37 Sydney time, about 3945.8 s after launch. The runtime ended the title after its one-second suspend timeout. The play session remained live until manual close. The one-hour stability result can be reported as process uptime with gameplay, loading and idle time included.
 
@@ -56,7 +56,7 @@ New FPS comparisons use the open-world manual slot. Use the same movement route 
 
 ## 21:25 open-world control from manual slot 2
 
-RangeWater run `fps-rangewater-20261126-212528-998` confirmed that slot 2 resumes outside Jason’s house. The user reported the initial blue tint cleared after gaining control and closed the run manually. Three captures in the run folder are named by local time (21:28:00, 21:29:40 and 21:30:32).
+RangeWater run `fps-rangewater-20261126-212528-998` confirmed that slot 2 resumes outside the residence. The user reported the initial blue tint cleared after gaining control and closed the run manually. Three captures in the run folder are named by local time (21:28:00, 21:29:40 and 21:30:32).
 
 | Activity | Complete present windows (uptime) | Frames | Seconds | FPS | Draws/frame | Longest interval |
 |---|---|---:|---:|---:|---:|---:|
