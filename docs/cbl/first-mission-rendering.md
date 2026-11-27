@@ -1,6 +1,6 @@
 # First gameplay on the RTX 5080
 
-**Next milestone:** resume the first playable cell from the autosave and reproduce the missing ceiling at a fixed camera. Lucia is controllable on the 9950X3D and RTX 5080. Establish which pass loses the room surface before comparing material fixes, frame time or static shadows.
+**Next milestone:** resume the first playable cell from the autosave and reproduce the missing ceiling at a fixed camera. The opening character is controllable on the 9950X3D and RTX 5080. Establish which pass loses the room surface before comparing material fixes, frame time or static shadows.
 
 ## What is in this integration
 
@@ -19,7 +19,7 @@ Reviewed `integrate-fxceless` at `f17581f`, a merge of local `main` at `0b36ed0`
 
 The 11:27:31 baseline ended at 11:29:46 Sydney time. The crash report names a GPU hang (DXGI_ERROR_DEVICE_HUNG, 0x887A0006) following a submission of 11 lists. Breadcrumbs were unavailable. The command and shader responsible are unknown. Preserve that report separately from later crashes. If it recurs, use DRED on a dedicated diagnostic replay.
 
-The run started at 11:29:58 on `f17581f` with the local changes listed in its revision file. The player completed the intro and controlled Lucia during “Talk to the cellmate.” The player saw sky through the ceiling and coarse detail that sometimes improved while stationary. Intro-video trails are a separate observation to revisit if the same artifact appears during gameplay.
+The run started at 11:29:58 on `f17581f` with the local changes listed in its revision file. The player completed the intro and took control during the first conversation in the cell The player saw sky through the ceiling and coarse detail that sometimes improved while stationary. Intro-video trails are a separate observation to revisit if the same artifact appears during gameplay.
 
 | Second-run log, 11:40:00–11:40:59 Sydney | Observation |
 | --- | --- |
