@@ -129,7 +129,7 @@ The earlier `5080-tuning` branch recorded **65 min 46 s** of process uptime. It 
 | Late open-world segment | 97.7 s | 4.73 |
 | Final on-foot sample | 31.1 s | 4.32 |
 
-Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. [Full legacy results and run history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/results.md#longest-recorded-run--26-november-2026) · [4K run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/docs/cbl/run-ledger-2026-11-26.md)
+Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. [Full legacy results and run history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/results.md#longest-recorded-run--26-november-2026) · [4K run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/46c71f1c263c06973780c1346549889610deba76/docs/cbl/run-ledger-2026-11-26.md)
 
 The earlier 4K async-present trials on `5080-tuning` showed 4.86 to 5.27 FPS in a first moving comparison with fewer draws on the candidate. Equal-duration windows in the repeat measured 4.49 FPS for `RangeWater` and 4.48 FPS for `RangeWaterAsync`. `RangeWater` remains that branch's reference profile.
 
