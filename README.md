@@ -23,7 +23,7 @@ The player saw less magenta tint on Series S, and little on Series X in the rece
 
 ## Build and launch
 
-Use `vice-tay-5080-tuning` for the scripts, build commands and tuning settings below. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/docs/cbl/5080-tuning.md#open-world-performance-replay)
+Use `vice-tay-5080-tuning` for the scripts, build commands and tuning settings below. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/46c71f1c263c06973780c1346549889610deba76/docs/cbl/5080-tuning.md#open-world-performance-replay)
 
 Use Windows 11, a Direct3D 12 GPU with shader model 6.6 and mesh shader support, the MSVC build tools and Windows SDK, and the repository's pinned Rust toolchain. Create `victory.toml` from the example if you need a new configuration, then set `game_dir` to your own dump. Use a regular PowerShell session from the repository root. [Configuration example](victory.example.toml) · [Vice-Tay build and Windows 10 Agility SDK notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md#getting-started)
 
