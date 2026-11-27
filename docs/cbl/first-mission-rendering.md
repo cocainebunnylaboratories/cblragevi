@@ -39,7 +39,7 @@ The drop counters come from different paths and sampling intervals. Keep their l
 From a fresh PowerShell session in the repository root, replace the example game path. Each invocation creates an external run folder. Use a fresh shell or record inherited overrides when comparing runs.
 
 ```powershell
-$game = 'D:\Titles\TestTitle\game_scarlett_master.exe'
+$game = 'D:\Titles\TestTitle\Title.exe'
 cargo build --profile diag -p victory --features diagnostics
 if ($LASTEXITCODE -ne 0) { throw 'Diagnostic build failed' }
 
