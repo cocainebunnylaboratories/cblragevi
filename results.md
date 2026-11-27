@@ -1,5 +1,17 @@
 # CBL VIctory results
 
+## Results at a glance
+
+All runs below were on one Windows 11 PC with a GeForce RTX 5080 and Ryzen 9 9950X3D, with frame generation off. Every session in the table ended with a clean manual close.
+
+| Build and console profile | Verified game output | Process uptime | Measured median |
+| --- | --- | ---: | --- |
+| [Endurance reference · Xbox Series X](#prison-v1-endurance--28-november-2026) | 1440p (2560×1440) | **72:53** | **14.5 FPS** across about 59 minutes of gameplay and cutscenes before idle (678 reports) |
+| [Combined build · Xbox Series X](#combined-build--xbox-series-x-at-1440p--28-november-2026) | 1440p (2560×1440) | 11:24 and 19:41 | **14.7 FPS** in the overlapping comparison window of the longer run (200 reports) |
+| [Combined build · Xbox Series S](#combined-build--xbox-series-s-at-1080p--28-november-2026) | 1080p (1920×1080) | 29:29 and 2:42 | **17.25 FPS** (226 reports) and **16.9 FPS** (19 reports), respectively |
+
+The FPS values are medians of complete reports covering roughly five seconds each. For the combined runs listed here, qualifying reports start at least 15 seconds after the first ambient lighting resolve and contain at least 1,000 draws per frame. The Series X value uses the same 15–1,110 second comparison window used for the Series S overlap. Process uptime includes loading and any idle time. Differences in console profile, output resolution, and scene workload limit direct performance comparisons.
+
 ## Prison V1 endurance · 28 November 2026
 
 **72 min 53 s of process uptime using the Xbox Series X profile at verified 1440p (2560×1440 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. The diagnostic executable used Vice-Tay `a9612459`, Petr Seifert’s placed-copy optimization (#285), Taynan Piza’s ambient lighting fix (#206), and local lighting diagnostics. The run used the `5080` launcher preset with frame generation off. The original local mapping and refresh planners and the retirement worker were outside this reference build. [Source revisions and logs](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
@@ -46,7 +58,7 @@ The comparison uses complete reports between 15 and 1,110 seconds after the firs
 
 ## Combined build · Xbox Series S at 1080p · 28 November 2026
 
-Both completed runs used the **Xbox Series S profile at verified 1080p (1920×1080 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. They ran the combined build from `vice-tay-5080-tuning` at `0c6b941c`, with the `5080` preset and frame generation off. That build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local tuning changes. Both runs recorded the corrected diffuse ambient lighting pass, completed their 75- and 95-second captures with zero lost events, and exited with code 0. The two abandoned attempts were excluded. [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+Both completed runs used the **Xbox Series S profile at verified 1080p (1920×1080 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. They ran the combined build from `vice-tay-5080-tuning` at `0c6b941c`, with the `5080` preset and frame generation off. That build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local tuning changes. Both runs recorded the corrected diffuse ambient lighting pass, completed their 75- and 95-second captures with zero lost events, and exited with code 0. The two abandoned attempts were excluded. [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c0222dc65f7c6fd461fb62b0c48d9e5a8) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
 | Measurement | Prison V1 | Jason slot 2 |
 | --- | ---: | ---: |
@@ -91,7 +103,7 @@ Each gameplay report spans roughly five seconds. The candidate was reported to f
 
 ### Visual status
 
-Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on Jason slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The result applies to the scenes checked. The Prison V1 and [Series S](#combined-build--xbox-series-s-at-1080p--28-november-2026) sections record later visual observations. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks) · [Visual run logs and provenance](docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on Jason slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The result applies to the scenes checked. The Prison V1 and [Series S](#combined-build--xbox-series-s-at-1080p--28-november-2026) sections record later visual observations. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/results.md#what-still-breaks) · [Visual run logs and provenance](docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
 ### Tuning decisions
 
@@ -117,6 +129,6 @@ The earlier `5080-tuning` branch recorded **65 min 46 s** of process uptime. It 
 | Late open-world segment | 97.7 s | 4.73 |
 | Final on-foot sample | 31.1 s | 4.32 |
 
-Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. [Full legacy results and run history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#longest-recorded-run--26-november-2026) · [4K run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/run-ledger-2026-11-26.md)
+Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. [Full legacy results and run history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/results.md#longest-recorded-run--26-november-2026) · [4K run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f55dfd9037d064687394f0d82290f630d3/docs/cbl/run-ledger-2026-11-26.md)
 
 The earlier 4K async-present trials on `5080-tuning` showed 4.86 to 5.27 FPS in a first moving comparison with fewer draws on the candidate. Equal-duration windows in the repeat measured 4.49 FPS for `RangeWater` and 4.48 FPS for `RangeWaterAsync`. `RangeWater` remains that branch's reference profile.

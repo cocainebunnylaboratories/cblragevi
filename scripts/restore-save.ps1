@@ -1,17 +1,18 @@
- # Close the game before restoring. Pass a snapshot name or its full Windows path.
+ # Close the game before restoring. Pass a full snapshot path, or a name with -BackupRoot.
 # The previous active saves are kept in a saves-before-restore-* folder.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, Position = 0)][string]$Path,
-    [ValidateSet('diag', 'release')][string]$Build = 'diag'
+    [ValidateSet('diag', 'release')][string]$Build = 'diag',
+    [string]$BackupRoot
 )
 
 $ErrorActionPreference = 'Stop'
-$backupRoot = 'C:\Users\isuru\Documents\cbl\gtavi\saves'
 
 function Test-WithinDirectory([string]$Path, [string]$Directory) {
-    $base = $Directory.TrimEnd('\') + '\'
-    return ($Path.TrimEnd('\') + '\').StartsWith($base, [StringComparison]::OrdinalIgnoreCase)
+    $separator = [IO.Path]::DirectorySeparatorChar
+    $base = $Directory.TrimEnd($separator) + $separator
+    return ($Path.TrimEnd($separator) + $separator).StartsWith($base, [StringComparison]::OrdinalIgnoreCase)
 }
 
 function Assert-NoReparsePoints([string]$Path) {
@@ -44,11 +45,22 @@ function Assert-GameClosed {
     }
 }
 
-$requested = if ([IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path $backupRoot $Path }
+$protectedDirectory = $null
+if ($BackupRoot) {
+    $root = Get-Item -LiteralPath $BackupRoot -Force
+    if (-not $root.PSIsContainer) { throw '-BackupRoot must point to a directory.' }
+    $protectedDirectory = $root.FullName
+}
+if (-not [IO.Path]::IsPathRooted($Path)) {
+    if (-not $protectedDirectory) { throw 'Pass a full snapshot path, or use -BackupRoot with a snapshot name.' }
+    $Path = Join-Path $protectedDirectory $Path
+}
+$requested = $Path
 $snapshot = Get-Item -LiteralPath $requested -Force
-if (-not $snapshot.PSIsContainer -or $snapshot.FullName -eq $backupRoot -or
-    -not (Test-WithinDirectory $snapshot.FullName $backupRoot)) {
-    throw "Choose a snapshot folder under $backupRoot."
+if (-not $snapshot.PSIsContainer) { throw 'Choose a snapshot directory.' }
+if ($protectedDirectory -and ($snapshot.FullName -eq $protectedDirectory -or
+    -not (Test-WithinDirectory $snapshot.FullName $protectedDirectory))) {
+    throw 'Choose a snapshot folder inside -BackupRoot.'
 }
 
 # Accept the snapshot, its title folder, or its saves folder.
@@ -64,6 +76,9 @@ if ($snapshot.Name -eq 'saves') {
 $source = Join-Path $title.FullName 'saves'
 if ($title.Name -notmatch '^[0-9A-F]{8}$' -or -not (Test-Path -LiteralPath $source -PathType Container)) {
     throw "Could not find a title's saves folder in '$requested'."
+}
+if (-not $protectedDirectory) {
+    $protectedDirectory = if ($snapshot.Name -eq 'saves') { $title.FullName } else { $snapshot.FullName }
 }
 Assert-NoReparsePoints $source
 if (-not (Get-ChildItem -LiteralPath $source -Force | Select-Object -First 1)) {
@@ -90,7 +105,7 @@ try {
 
 $titleDir = Join-Path $dataDir $title.Name.ToUpperInvariant()
 $active = Join-Path $titleDir 'saves'
-if ((Test-WithinDirectory $titleDir $backupRoot) -or (Test-WithinDirectory $backupRoot $active)) {
+if ((Test-WithinDirectory $titleDir $protectedDirectory) -or (Test-WithinDirectory $protectedDirectory $active)) {
     throw 'The active save location overlaps the backup directory.'
 }
 Assert-NoReparsePoints $active

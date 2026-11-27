@@ -2,7 +2,7 @@
 //! `port_descriptors`): the title's own code that copies descriptor records
 //! into its shader-visible heap as bytes tells the layer which slots it wrote.
 //!
-//! What the title does (game_scarlett_master.exe): each draw's and each
+//! What the title does (tested title executable): each draw's and each
 //! dispatch's descriptor tables are allocated from its frame allocator
 //! (image +0x4d9f400; the allocator's memory is the placed shader-visible
 //! view heap) and filled by two functions, +0x4d9efd0 (graphics) and
@@ -38,7 +38,7 @@ pub struct Site {
     pub bytes: &'static [u8],
 }
 
-/// The six record stores of the table fillers (game_scarlett_master.exe
+/// The six record stores of the table fillers (tested title executable
 /// 1.0.2.1, image offsets).
 pub const SITES: [Site; 6] = [
     // +0x4d9efd0, loop 1: [rcx+rsi]
@@ -183,7 +183,7 @@ pub unsafe fn apply(base: usize, size: usize, marks: usize, sites: &[Site]) -> V
     out
 }
 
-/// The title's own `memcpy` (game_scarlett_master.exe 1.0.2.1, image offset).
+/// The title's own `memcpy` (tested title executable 1.0.2.1, image offset).
 pub const TITLE_MEMCPY: usize = 0x5f4_0560;
 
 /// The other writers of descriptor records into the heap, which the six
