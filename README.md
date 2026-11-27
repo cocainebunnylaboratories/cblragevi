@@ -6,6 +6,13 @@ CBL VIctory is a Windows compatibility layer based on Marvisak’s VIctory and f
 
 As of 26 November 2026, the opening interior renders with characters, furnishings and ceiling lights. With water texture readback enabled, the Chapter 1 boat floats and responds to throttle, and a replay continued into open-world driving and manual saving. Outdoor shadows remain very dark, some surfaces show block artifacts, and water reflections can appear unusually white.
 
+## RTX 5080 branch results
+
+The follow-up on `vice-tay-5080-tuning` reached **roughly 12–15 FPS in individual gameplay samples at Series X 2560×1440 game output** on the RTX 5080 and Ryzen 9 9950X3D. The controlled mapping comparison had medians of **12.2 FPS reference and 12.3 FPS candidate** at 6,000–9,000 draws per frame with zero pipelines pending. The longest mapping call in the 75-second capture fell from 79.7 to 21.4 ms. The captures had different streaming workloads, so the hitch result needs a repeat. Our goal for the 1440p profile is **25 FPS**. [1440p results](results.md#series-x-at-1440p--27-november-2026)
+
+- **`vice-tay-5080-tuning`** contains the newer Vice-Tay-based code, windowed output presets, save-backup restore, shader and pipeline warmup, and logs with run settings and executable hashes. Its tested profile uses four mapping threads and CPU scheduling level 2. It includes the page-mapping planner and the relay diagnostics, with the retirement worker available as an opt-in experiment.
+- **`5080-tuning`** contains the earlier 4K renderer experiments and the **65 min 46 s** endurance record. Use its `RangeWater` profile and slot 2 replay for the historical 4K street route. Mesh launch measured slower and showed rendering differences in its first replay. The ambient-light trials and their visual checks are recorded in the handoff. [4K replay procedure](docs/cbl/5080-tuning.md#open-world-performance-replay) · [Renderer handoff](docs/cbl/HANDOFF.md)
+
 ## Renderer changes
 
 - **Texture streaming.** CBL’s upload scheduler sorts only the slots a pass can serve. It preserves retry priority and alternates between recent and older writes. PastiiJay’s overflow recovery refreshes texture views when remap records are lost, and myokex’s smaller-mip handling allows partially resident textures to be read. [Implementation credits](docs/cbl/patch-provenance.md)
