@@ -106,6 +106,17 @@ The first replay completed the 75-, 95-, and 600-second captures. The second als
 
 The performance comparison uses complete reports from 15 through 1,110 seconds after each trace first logs the diffuse ambient resolve. Frames with 6,000–8,999 draws and zero pipelines pending had median frame times of 71.1 ms on the reference and 74.9 ms on the combined build. Median CPU preparation moved from 45.4 to 33.1 ms/frame. The comparison matches approximate render workload and elapsed time. It does not match identical frames or streaming events. [Results table](../../results.md#combined-build--xbox-series-x-at-1440p--28-november-2026)
 
+#### Combined Series S 1080p replays
+
+The retained Prison V1 and Jason slot 2 runs used the same combined executable as the preceding Series X comparison, SHA-256 `5a77d4176332928198acd251b3a1acddfd7cf70a692ab3b697e5cf92ad964741`. Both logs verify Xbox Series S at 1920×1080 output and presentation, the matching depth plane and a recorded diffuse ambient resolve. Both completed the 75- and 95-second captures with zero lost events, then suspended and exited with code 0 after manual close. The first two Series S attempts were excluded.
+
+| Save | Local run folder under `target/play-logs` | Process uptime |
+| --- | --- | ---: |
+| Prison V1 | `20261128-043830-052-series-s-1920x1080-32104` | 29:29 |
+| Jason slot 2 | `20261128-050957-609-series-s-1920x1080-32104` | 2:42 |
+
+In the 6,000–8,999 draw band with zero pipelines pending, the Jason slot 2 replay logged median CPU preparation of 44.3 ms/frame, including 20.7 ms/frame for copies, and 13.7 ms/frame for copy-back. This sample includes nine reports. The player reported less visible magenta tint on Series S and little on Series X in the recent checks. [Results table](../../results.md#combined-build--xbox-series-s-at-1080p--28-november-2026)
+
 ### Earlier upstream work to track
 
 Previous review at `6594538b`, 11 commits after the pinned build. [Upstream comparison](https://github.com/TaynanGT/Vice-Tay/compare/a9612459...6594538b8)
