@@ -6,7 +6,7 @@ CBL VIctory is a Windows compatibility layer for Xbox Series titles. The `vice-t
 
 **Series X at 2560×1440 game output reached roughly 12–15 FPS in the earlier gameplay samples.** In the later Jason slot 2 replay, Petr Seifert’s placed-copy patch moved the median from **68.0 to 63.9 ms/frame** in the 6,000–8,999 draw band. The replay logged zero waits of the specific kind the patch targets, down from 70 records in the warmed reference. Scene workload differed, so the sustained FPS gain still needs confirmation. [Results and measurement conditions](results.md) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
-The longest recorded session remains **65 min 46 s** at **Series X 3840×2160 output** on the older `5080-tuning` branch. It went from the Chapter 1 boat checkpoint into open-world driving, on-foot play and manual saves. The 1440p results come from separate short replays. The next target is **25 FPS (40 ms/frame)** at Series X 1440p. [Run history](results.md)
+The longest recorded session is **72 min 53 s** at verified **Series X 2560×1440 output**. The manual Prison V1 playthrough went from Lucia in prison through Chapter 1 and Jason free roam, followed by an idle check, a manual save and a clean exit. The median of the gameplay and cutscene reports before idle was **14.5 FPS**. This run used the reference with Petr Seifert’s #285 and Taynan Piza’s #206, preserved on `vice-tay-5080-tuning-unpatch`. The tuning branch layers our local optimizations onto that reference. The performance target is **25 FPS (40 ms/frame)**. [Run history and credits](results.md#prison-v1-endurance--28-november-2026)
 
 ## Build and launch
 
@@ -73,9 +73,9 @@ This command runs the branch build in `target/diag`. The recorded mapping compar
 
 ## Known problems
 
-With Vice-Tay’s renderer, we no longer see the blocky surfaces or unusually white water reflections reported in earlier runs. Shadows can still look almost black at times, and some models occasionally show a magenta tint. [Visual status](results.md#visual-status)
+Taynan Piza’s #206 ambient lighting fix cleared broad areas of almost-black shade in the short Jason slot 2 checks. The longer Prison V1 run still showed occasional pink tint through the police-car window and on foliage during moving scene loads. Low-light shadows can remain very dark. Hard-edged rectangular artifacts appeared on water during the boat and flight sequences. Models, buildings and dry terrain generally looked good, with a short low-detail transition at the start of Chapter 1. [Endurance visuals](results.md#prison-v1-endurance--28-november-2026) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
-Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. The short 1440p test has yet to go through an endurance run. [Results](results.md)
+Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. [Results](results.md)
 
 ## Credits and license
 
