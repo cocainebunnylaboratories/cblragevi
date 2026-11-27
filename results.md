@@ -2,7 +2,7 @@
 
 ## Prison V1 endurance · 28 November 2026
 
-**72 min 53 s of process uptime at verified Series X 2560×1440 windowed output** on the RTX 5080 and Ryzen 9 9950X3D. The diagnostic executable used Vice-Tay `a9612459`, Petr Seifert’s placed-copy optimization (#285), Taynan Piza’s ambient lighting fix (#206), and local lighting diagnostics. The run used the `5080` launcher preset with frame generation off. The original local mapping and refresh planners and the retirement worker were outside this reference build. [Source revisions and logs](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+**72 min 53 s of process uptime using the Xbox Series X profile at verified 1440p (2560×1440 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. The diagnostic executable used Vice-Tay `a9612459`, Petr Seifert’s placed-copy optimization (#285), Taynan Piza’s ambient lighting fix (#206), and local lighting diagnostics. The run used the `5080` launcher preset with frame generation off. The original local mapping and refresh planners and the retirement worker were outside this reference build. [Source revisions and logs](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
 The run was played manually on a DualSense controller using DSX's Xbox One controller emulation. Times below are local, AEDT.
 
@@ -32,7 +32,7 @@ The log confirms that #206 selected the matching depth view and recorded the dif
 
 ## Jason slot 2 · 28 November 2026
 
-The warmed reference used Vice-Tay `a9612459`, Series X at 2560×1440, and the larger Windows page file. The two candidate builds each applied one patch to that pin.
+The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440p (2560×1440 game output), and the larger Windows page file. The two candidate builds each applied one patch to that pin.
 
 | Trial | Observed result |
 | --- | --- |
@@ -43,7 +43,7 @@ Both candidates exited cleanly. The one-pass planner removes measured CPU work, 
 
 ## Series X at 1440p · 27 November 2026
 
-The RTX 5080 and Ryzen 9 9950X3D reached **roughly 12–15 FPS in individual gameplay reports** at verified **2560×1440 game output**. The 15:25 and 15:38 Series X runs recorded warmed, in-world reports of 15.0 and 15.4 FPS. These were short samples at the title's profile render scale. The newer mapping comparison centered on about 12 FPS.
+The RTX 5080 and Ryzen 9 9950X3D reached **roughly 12–15 FPS in individual gameplay reports** using the **Xbox Series X profile at verified 1440p (2560×1440 game output)**. The 15:25 and 15:38 Series X runs recorded warmed, in-world reports of 15.0 and 15.4 FPS. These were short samples at the title's profile render scale. The newer mapping comparison centered on about 12 FPS.
 
 The reference was built from Vice-Tay `a9612459`. The candidate used that same source plus the local page-mapping planner. Both ran Series X windowed at 2560×1440, with four mapping threads, CPU scheduling level 2, and frame generation and the optional readback pool disabled. Both exited cleanly. The logged game output patch and presentation size were 2560×1440. The two run folders were `20261127-172818-006-series-x-2560x1440-24364` and `20261127-194732-523-series-x-2560x1440-24364`.
 
