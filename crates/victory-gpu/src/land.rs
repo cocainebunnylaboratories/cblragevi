@@ -115,6 +115,18 @@ pub(crate) mod stat {
     pub(crate) const HAD_BYTES: usize = 24;
     /// Jobs.
     pub(crate) const JOBS: usize = 25;
+    /// Per-flight parts of READ_BACKS and the retirement after the last flight.
+    #[cfg(feature = "diagnostics")]
+    pub(crate) const LIST_READS: usize = 26;
+    #[cfg(feature = "diagnostics")]
+    pub(crate) const FLIGHT_RESOURCES: usize = 27;
+    #[cfg(feature = "diagnostics")]
+    pub(crate) const RELEASE_TABLES: usize = 28;
+    #[cfg(feature = "diagnostics")]
+    pub(crate) const RETIRE: usize = 29;
+    #[cfg(feature = "diagnostics")]
+    pub(crate) const COUNT: usize = 30;
+    #[cfg(not(feature = "diagnostics"))]
     pub(crate) const COUNT: usize = 26;
 }
 
@@ -171,6 +183,16 @@ pub(crate) fn log(frames: f64) {
         ms(stat::READ_BACKS),
         ms(stat::TOLD),
         ms(stat::REST),
+    );
+    #[cfg(feature = "diagnostics")]
+    tracing::info!(
+        "relay completion per frame: list readbacks {:.2} ms, flight resources {:.2} ms, descriptor table release {:.2} ms, \
+         title notifications {:.2} ms, retirement {:.2} ms",
+        ms(stat::LIST_READS),
+        ms(stat::FLIGHT_RESOURCES),
+        ms(stat::RELEASE_TABLES),
+        ms(stat::TOLD),
+        ms(stat::RETIRE),
     );
     tracing::info!(
         "landed per frame: {:.0} pieces, {:.0} with a new byte; of their {:.0} pages of 4 KiB {:.0} with a new byte ({:.1} MB), \

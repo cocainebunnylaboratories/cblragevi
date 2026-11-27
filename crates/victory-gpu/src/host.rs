@@ -6,6 +6,7 @@
 //! overlap them with per-submission fences once more than clears run.
 
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::mpsc::{SyncSender, sync_channel};
 use std::sync::{Mutex, OnceLock};
 
 use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, LRESULT, RECT, WPARAM};
@@ -97,7 +98,7 @@ fn retired() -> std::sync::MutexGuard<'static, std::collections::VecDeque<(u64, 
 static STARTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static FINISHED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// A retired object, dropped on whatever thread finishes the submission.
+/// A host object kept alive until its submission and retirement lag have passed.
 #[allow(dead_code)]
 enum Retired {
     Any(Box<dyn std::any::Any>),
@@ -606,11 +607,49 @@ fn bury_lag() -> u64 {
     })
 }
 
+// Only descriptor resources cross this channel. Keep at most two batches
+// waiting behind the batch being released; a busy worker never blocks the relay.
+const RETIRE_BATCH: usize = 256;
+type ResourceReleases = SyncSender<Vec<ID3D12Resource>>;
+
+fn relay_retire_worker() -> Option<&'static ResourceReleases> {
+    static WORKER: OnceLock<Option<ResourceReleases>> = OnceLock::new();
+    WORKER.get_or_init(|| {
+        if !std::env::var_os("VICTORY_RETIRE_WORKER").is_some_and(|v| v == "1") {
+            return None;
+        }
+        let (sender, receiver) = sync_channel::<Vec<ID3D12Resource>>(2);
+        match std::thread::Builder::new().name("victory-retire".into()).spawn(move || {
+            for resources in receiver {
+                let _span = crate::timeline::span("retirement worker: release resources");
+                drop(resources);
+            }
+        }) {
+            Ok(_) => {
+                tracing::info!("relay resource retirement worker started");
+                Some(sender)
+            }
+            Err(error) => {
+                tracing::warn!(%error, "could not start retirement worker; releasing resources inline");
+                None
+            }
+        }
+    }).as_ref()
+}
+
+fn release_batch(worker: &ResourceReleases, batch: Vec<ID3D12Resource>) {
+    if let Err(unsent) = worker.try_send(batch) {
+        let _span = crate::timeline::span("retirement: release unsent batch inline");
+        drop(unsent);
+    }
+}
+
 /// Drops what waited for submissions up to `finished` ([`bury_lag`]). The
 /// numbers come in order, but for threads that overtake each other: one of
 /// those is dropped a little later than it could be.
-fn bury(finished: u64) {
+fn bury(finished: u64, worker: Option<&ResourceReleases>) {
     let finished = finished.saturating_sub(bury_lag());
+    let mut batch = Vec::new();
     for part in &RETIRED {
         let done: Vec<(u64, Retired)> = {
             let mut retired = part.lock().unwrap_or_else(|e| e.into_inner());
@@ -620,7 +659,24 @@ fn bury(finished: u64) {
             }
             retired.drain(..n).collect()
         };
-        drop(done);
+        if let Some(worker) = worker {
+            for (_, object) in done {
+                if let Retired::Resource(resource) = object {
+                    if batch.is_empty() {
+                        batch.reserve_exact(RETIRE_BATCH);
+                    }
+                    batch.push(resource);
+                    if batch.len() == RETIRE_BATCH {
+                        release_batch(worker, std::mem::take(&mut batch));
+                    }
+                }
+            }
+        } else {
+            drop(done);
+        }
+    }
+    if let Some(worker) = worker && !batch.is_empty() {
+        release_batch(worker, batch);
     }
 }
 
@@ -5600,34 +5656,51 @@ impl Host {
             telling = match item {
                 Late::Run(mut flight) => {
                     last = flight.number;
+                    let mut detail = crate::timeline::span("landing: read list results");
                     for &i in &flight.order {
                         read_backs(flight.lists[i].host());
                     }
+                    #[cfg(feature = "diagnostics")]
+                    let finished_reads = crate::land::spent(crate::land::stat::LIST_READS, telling);
+                    detail.next("landing: finish flight resources");
                     if let Some(card) = flight.card {
                         self.card_done(card);
                     }
                     if let Some(own) = flight.own {
                         own.landed();
                     }
+                    #[cfg(feature = "diagnostics")]
+                    let finished_resources = crate::land::spent(crate::land::stat::FLIGHT_RESOURCES, finished_reads);
+                    detail.next("landing: release descriptor tables");
                     for detached in &mut flight.lists {
                         detached.release_tables();
                     }
+                    #[cfg(feature = "diagnostics")]
+                    crate::land::spent(crate::land::stat::RELEASE_TABLES, finished_resources);
+                    detail.end();
                     landed.push((flight.lists, flight.order));
                     crate::land::spent(crate::land::stat::READ_BACKS, telling)
                 }
                 Late::Write(at, what, bytes) => {
+                    let _detail = crate::timeline::span("landing: write title notification");
                     what.write(at as *mut u8, bytes);
                     crate::land::spent(crate::land::stat::TOLD, telling)
                 }
                 Late::Signal(fence, value) => {
+                    let _detail = crate::timeline::span("landing: signal title fence");
                     crate::fence::set(fence.as_this(), value);
                     crate::land::spent(crate::land::stat::TOLD, telling)
                 }
             };
         }
         if last > 0 {
+            let _detail = crate::timeline::span("landing: retire completed resources");
+            #[cfg(feature = "diagnostics")]
+            let retiring = std::time::Instant::now();
             FINISHED.store(last, Ordering::Release);
-            bury(last);
+            bury(last, relay_retire_worker());
+            #[cfg(feature = "diagnostics")]
+            crate::land::spent(crate::land::stat::RETIRE, retiring);
         }
         stage.next("landing: the rest");
         self.log_messages();
@@ -6103,7 +6176,7 @@ impl Host {
             }
             if last > 0 {
                 FINISHED.store(last, Ordering::Release);
-                bury(last);
+                bury(last, None);
             }
             line().landed.extend(landed);
         }
@@ -6556,7 +6629,7 @@ impl Host {
         let _ = &firsts;
         let fence = *submitted;
         FINISHED.store(this_submission, Ordering::Release);
-        bury(this_submission);
+        bury(this_submission, None);
         let gpu = prepared.elapsed();
         SUBMISSION_US[0].fetch_add((prepared - started).as_micros() as u64, Ordering::Relaxed);
         SUBMISSION_US[1].fetch_add(gpu.as_micros() as u64, Ordering::Relaxed);
