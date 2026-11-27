@@ -11,7 +11,7 @@
 # -Console      series-x (the default) or series-s: the console the title takes this PC for
 # -Build        target\diag (the default, the build all measurements are of) or target\release
 # -VictoryExe   use a separately built VIctory executable
-# -Machine      auto (the default: by the graphics card), 7900xtx, 4070 or 4090
+# -Machine      auto (the default: by the graphics card), 7900xtx, 4070, 4090 or 5080
 # -More         other settings: -More @{VICTORY_PANEL='1'} or -More @{VICTORY_AMBIENT='1.0'}
 # On a smaller NVIDIA PC, compare the same Series S scene after a fresh start
 # with one override at a time, e.g. -More @{VICTORY_LAND_THREADS='3'} for
@@ -25,7 +25,7 @@ param(
     [switch]$NoPanel,
     [ValidateSet('series-x', 'series-s')][string]$Console = 'series-x',
     [ValidateSet('diag', 'release')][string]$Build = 'diag',
-    [ValidateSet('auto', '7900xtx', '4070', '4090')][string]$Machine = 'auto',
+    [ValidateSet('auto', '7900xtx', '4070', '4090', '5080')][string]$Machine = 'auto',
     [hashtable]$More = @{},
     [ValidateSet('3840x2160', '2560x1440', '1920x1080')][string]$WindowSize,
     [switch]$WarmCache,
@@ -81,6 +81,14 @@ if ($Machine -eq '4070') {
         $settings.VICTORY_CARD_WINDOWS_MB = '1024'
     }
 }
+if ($Machine -eq '5080' -and -not $Safe) {
+    # Reproduce the RTX 5080 / 9950X3D Jason slot 2 measurements.
+    $settings.VICTORY_MAP_THREADS = '4'
+    $settings.VICTORY_FAST_CORES = '2'
+    $settings.VICTORY_D3D12_DRED = 'faults'
+    $settings.VICTORY_FRAMEGEN = '0'
+    $settings.VICTORY_READBACK_POOL = '0'
+}
 # -Safe leaves out every way still on trial, and the newest faster ones.
 if ($Safe) {
     $settings.VICTORY_UNDER_WIDE = '0'; $settings.VICTORY_LAND_ECHO = '0'
@@ -103,7 +111,7 @@ foreach ($k in $More.Keys) { $settings[$k] = $More[$k] }
 
 $ram = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
 Write-Host "Settings for the $Machine$(if ($Safe) { ', safe' })$(if ($RayTracing) { ', with ray tracing' })."
-if ($Console -eq 'series-s' -and $Machine -eq '4090') {
+if ($Console -eq 'series-s' -and $Machine -in @('4090', '5080')) {
     Write-Host ("Series S requests {0} list translation threads, {1} for memory updates, and {2} for landing." -f
         $settings.VICTORY_THIN_THREADS, $settings.VICTORY_UNDER_THREADS, $settings.VICTORY_LAND_THREADS)
 }

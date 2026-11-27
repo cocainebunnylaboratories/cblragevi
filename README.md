@@ -4,7 +4,7 @@ CBL VIctory is a Windows compatibility layer for Xbox Series titles. The `vice-t
 
 ## Current results
 
-**Series X at 2560×1440 game output reached roughly 12–15 FPS in individual gameplay samples.** In the latest comparison, the page-mapping patch measured a median of **12.3 FPS (81.3 ms/frame)** across reports with 6,000–9,000 draws per frame and zero pending pipelines. The pinned reference measured **12.2 FPS (81.7 ms/frame)**. The longest mapping call in the 75-second capture fell from **79.7 ms to 21.4 ms**. This is a possible hitch reduction from one replay. The 95-second captures had shorter calls on both builds. [Results and measurement conditions](results.md)
+**Series X at 2560×1440 game output reached roughly 12–15 FPS in the earlier gameplay samples.** In the later Jason slot 2 replay, Petr Seifert’s placed-copy patch moved the median from **68.0 to 63.9 ms/frame** in the 6,000–8,999 draw band. The replay logged zero waits of the specific kind the patch targets, down from 70 records in the warmed reference. Scene workload differed, so the sustained FPS gain still needs confirmation. [Results and measurement conditions](results.md) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
 The longest recorded session remains **65 min 46 s** at **Series X 3840×2160 output** on the older `5080-tuning` branch. It went from the Chapter 1 boat checkpoint into open-world driving, on-foot play and manual saves. The 1440p results come from separate short replays. The next target is **25 FPS (40 ms/frame)** at Series X 1440p. [Run history](results.md)
 
@@ -40,26 +40,22 @@ Close VIctory first. Pass a snapshot folder name or full path under the configur
 
 ## Applied tuning
 
-The NVIDIA launcher inherits Vice-Tay's `4090` preset. The tested 5080 profile uses the same submission, GPU copy and shader settings. Set four mapping threads explicitly for the measured 1440p profile. The convenience launcher otherwise uses the preset's automatic mapping policy.
+Use `-Machine 5080` with `play.ps1` to reproduce the measured Jason slot 2 settings. It inherits Vice-Tay's 4090 submission, GPU copy and shader settings, and sets four mapping threads, CPU scheduling level 2, page-fault-only DRED, frame generation off and the optional readback pool off. The convenience launchers select the vendor preset automatically.
 
 | Area | Settings used in the 1440p replay |
 | --- | --- |
 | Workers | `VICTORY_FAST_CORES=2`, `VICTORY_MAP_THREADS=4`, `VICTORY_THIN_THREADS=12`, `VICTORY_UNDER_THREADS=8`, `VICTORY_LAND_THREADS=6`, `VICTORY_TITLE_PRIORITIES=0` |
 | Submission and copies | `VICTORY_RELAY=2`, `VICTORY_RELAY_COPY=1`, `VICTORY_WIDE_BACK=1`, `VICTORY_CARD_STEPS=2`, `VICTORY_CARD_REHASH_RUNS=1`, `VICTORY_PLACED_ORDER=1`, `VICTORY_JOIN_COPIES=1`, `VICTORY_JOIN_PARTS=8` |
 | Draw and upload preparation | `VICTORY_THIN=1`, `VICTORY_INDIRECT_WINDOW=1`, `VICTORY_INDIRECT_BATCH=2`, `VICTORY_UPLOAD_AHEAD=1`, `VICTORY_TEXTURE_NO_WAIT=1` |
-| Output and diagnostics | `VICTORY_OUTPUT=2560x1440` with a matching window target, `VICTORY_AMBIENT=0.8`, `VICTORY_SHOW_AFTER=1`, `VICTORY_PANEL=1`, `VICTORY_D3D12_DRED=light`, `VICTORY_PIPELINE_BOOK=1`, `VICTORY_LOG=info` |
+| Output and diagnostics | `VICTORY_OUTPUT=2560x1440` with a matching window target, `VICTORY_AMBIENT=0.8`, `VICTORY_SHOW_AFTER=1`, `VICTORY_PANEL=1`, `VICTORY_D3D12_DRED=faults`, `VICTORY_PIPELINE_BOOK=1`, `VICTORY_LOG=info` |
 | Shader compatibility | The four-pipeline NVIDIA allowlist in `VICTORY_WAVE_WIDE_ONLY` |
 | Disabled for comparison | Frame generation, texture readback pool and the experimental retirement worker. The normal water texture readback path remains enabled. |
 
 ```powershell
 $timeline = "target\play-logs\series-x-1440p-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
-.\scripts\play.ps1 -Console series-x -Machine 4090 -Windowed -WindowSize 2560x1440 -WarmCache -CaptureLog -More @{
+.\scripts\play.ps1 -Console series-x -Machine 5080 -Windowed -WindowSize 2560x1440 -WarmCache -CaptureLog -More @{
     VICTORY_OUTPUT = '2560x1440'
     VICTORY_WINDOW_MAX = '2560x1440'
-    VICTORY_FAST_CORES = '2'
-    VICTORY_MAP_THREADS = '4'
-    VICTORY_FRAMEGEN = '0'
-    VICTORY_READBACK_POOL = '0'
     VICTORY_TIMELINE = "75+95,5,$timeline"
 }
 ```
@@ -68,6 +64,8 @@ This command runs the branch build in `target/diag`. The recorded mapping compar
 
 ## Local changes and trials
 
+- **Buffer refresh planning.** The local planner accumulates buffer ranges during the command-list walk and preserves their original order and shader-write boundaries. The measured planning spans got shorter in both captures. FPS in the tighter draw-count band was nearly flat. [Jason slot 2 results](results.md#jason-slot-2--28-november-2026)
+- **Placed-copy fill forwarding.** Petr Seifert's Vice-Tay PR #285 lets eligible GPU fills read from a placed copy's source to avoid a submission split or wait. The tuning branch imports upstream commit `9dea421b` with its original authorship. [Upstream commit](https://github.com/TaynanGT/Vice-Tay/commit/9dea421bf4469ce3511c4b15481d64dd585de25d) · [Local provenance and benchmark](docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november)
 - **Page mapping.** The planner prepares aligned groups outside the mapping lock, tracks contiguous destinations as an interval and reuses a set for scattered destinations. It preserves dependency order, actual host mapping calls, write guards and GPU notifications. All 5,000 generated planner comparisons matched, and all 19 Windows mapping tests passed. The native CPU benchmark moved from 116.7 µs to 4.7 µs for a synthetic 4,096-page contiguous request. [Code](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-hle/src/modules/xmem.rs) · [Benchmark](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md#local-candidate-on-the-pinned-build-27-november)
 - **Relay measurements.** Diagnostic builds time list readbacks, flight resource completion, descriptor release, title notifications and retirement. The optional `VICTORY_RETIRE_WORKER=1` sends completed descriptor resources to a bounded release worker after fence completion and the existing retirement lag. It releases inline when the queue is full. The trial shifted some retirement time off the relay with little change in total frame time, so the measured profile keeps it off. [Relay implementation](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-gpu/src/host.rs) · [Results](results.md)
 - **Scheduling and buffer reuse.** Scheduling level 2 remains the reference after the level 1 comparison changed direction across sample windows. Four mapping threads had the better midrange result against the inherited automatic setting. The upstream texture readback pool reused most buffers and reduced driver allocations, with similar overall frame times in the tested route. [Experiment ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md)

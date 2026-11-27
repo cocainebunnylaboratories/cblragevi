@@ -1,5 +1,16 @@
 # CBL VIctory results
 
+## Jason slot 2 · 28 November 2026
+
+The warmed reference used Vice-Tay `a9612459`, Series X at 2560×1440, and the larger Windows page file. The two candidate builds each applied one patch to that pin.
+
+| Trial | Observed result |
+| --- | --- |
+| Local one-pass refresh planner | Planning spans fell from 1.83 to 0.48 ms/frame at 75 seconds and from 0.73 to 0.40 ms/frame at 95 seconds. In the 8,000–8,999 draw band with zero pipelines pending, median FPS was 14.4 on the reference and 14.3 on the candidate. |
+| Vice-Tay PR #285, by Petr Seifert | From 75 to 150 seconds, log records attributing fill waits to placed copies fell from 70 to zero. In the 6,000–8,999 draw band with zero pipelines pending, median frame time went from 68.0 to 63.9 ms (14.7 to 15.65 FPS) across 10 and 8 reports. The candidate drew less in that band. |
+
+Both candidates exited cleanly. The one-pass planner removes measured CPU work, and #285 reduced the targeted waits on this route. Endurance and Series S 1080p results are pending. [Run IDs, settings and source revisions](docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november) · [Petr Seifert’s upstream patch](https://github.com/TaynanGT/Vice-Tay/pull/285)
+
 ## Series X at 1440p · 27 November 2026
 
 The RTX 5080 and Ryzen 9 9950X3D reached **roughly 12–15 FPS in individual gameplay reports** at verified **2560×1440 game output**. The 15:25 and 15:38 Series X runs recorded warmed, in-world reports of 15.0 and 15.4 FPS. These were short samples at the title's profile render scale. The newer mapping comparison centered on about 12 FPS.
