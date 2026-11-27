@@ -75,7 +75,9 @@ This command runs the branch build in `target/diag`. The recorded mapping compar
 
 ## Known problems
 
-Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. The short 1440p test has yet to go through an endurance run. Earlier play recorded deep shadows, block artifacts and bright water reflections, and picture quality remains part of every comparison. [Results](results.md) · [Inherited Vice-Tay notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md#known-problems)
+With Vice-Tay’s renderer, we no longer see the blocky surfaces or unusually white water reflections reported in earlier runs. Shadows can still look almost black at times, and some models occasionally show a magenta tint. [Visual status](results.md#visual-status)
+
+Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. The short 1440p test has yet to go through an endurance run. [Results](results.md)
 
 ## Credits and license
 
