@@ -30,7 +30,7 @@ Each gameplay report spans roughly five seconds. The candidate was reported to f
 
 The 1440p goal is **25 FPS**, or **40 ms per presented frame**. Keep the pinned executable, save, route and output fixed for the next isolated change. Compare CPU preparation, memory copies, readback and the longest stalls alongside the image.
 
-[Detailed tuning ledger and test setup](docs/cbl/vice-tay-1440p-tuning.md)
+[Detailed tuning ledger and test setup](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md)
 
 ## Longest recorded run · 26 November 2026
 
@@ -42,6 +42,6 @@ The longest recorded session is **65 min 46 s** of process uptime on the earlier
 | Late open-world segment | 97.7 s | 4.73 |
 | Final on-foot sample | 31.1 s | 4.32 |
 
-Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. The full legacy run ledger is in `docs/cbl/run-ledger-2026-11-26.md` on `5080-tuning`.
+Uptime includes loading and idle time. The scene averages use successful present intervals divided by elapsed time. The legacy 4K results and the latest 1440p samples use different builds, workloads and measurement windows. [Full legacy results and run history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#longest-recorded-run--26-november-2026) · [4K run ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/run-ledger-2026-11-26.md)
 
 The earlier 4K async-present trials on `5080-tuning` showed 4.86 to 5.27 FPS in a first moving comparison with fewer draws on the candidate. Equal-duration windows in the repeat measured 4.49 FPS for `RangeWater` and 4.48 FPS for `RangeWaterAsync`. `RangeWater` remains that branch's reference profile.
