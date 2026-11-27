@@ -92,16 +92,17 @@ The endurance executable is preserved by source on `vice-tay-5080-tuning-unpatch
 
 Reference source `2fb36ee1` incorporates the authored imports `36ac5c94` (#285) and `d5608c83` (#206). The tuning branch’s integration merge is `0c6b941c`. Its diagnostic candidate at `target/vice-tay-5080-combined/diag/victory.exe` has SHA-256 `5a77d4176332928198acd251b3a1acddfd7cf70a692ab3b697e5cf92ad964741`. The Rust runtime differences from the reference are limited to local page mapping, buffer refresh planning, relay timing and optional retirement, and the window-sizing integration. Launch from the tuning checkout with `-Machine 5080` and keep retirement off for the first comparison. [Petr Seifert’s source commit](https://github.com/TaynanGT/Vice-Tay/commit/9dea421bf4469ce3511c4b15481d64dd585de25d) · [Taynan Piza’s source commit](https://github.com/TaynanGT/Vice-Tay/commit/292adb5a807dd62e6f938fd47716e1f82bdb393e)
 
-#### Combined Series X 1440p replay
+#### Combined Series X 1440p replays
 
-The replay used the `0c6b941c` diagnostic candidate documented above. The executable SHA-256 matched the build record, and the recorded launcher environment matched the Prison V1 endurance reference apart from the timeline setting. The trace verified 2560×1440 game output and presentation size, selected the matching depth plane, and recorded the diffuse ambient resolve. The title suspended on manual close and exited with code 0.
+Both replays used the `0c6b941c` diagnostic candidate documented above. The executable SHA-256 matched the build record, and the recorded launcher environment matched the Prison V1 endurance reference apart from the timeline setting. Both traces verified 2560×1440 game output and presentation size, selected the matching depth plane, and recorded the diffuse ambient resolve. The title suspended on manual close and exited with code 0 in both runs.
 
 | Role | Local run folder under `target/play-logs` | Process uptime |
 | --- | --- | ---: |
 | Endurance reference | `20261128-021107-006-series-x-2560x1440-32104` | 72:53 |
-| Combined replay | `20261128-035850-403-series-x-2560x1440-32104` | 19:41 |
+| Combined, first replay | `20261128-034720-795-series-x-2560x1440-32104` | 11:24 |
+| Combined, second replay | `20261128-035850-403-series-x-2560x1440-32104` | 19:41 |
 
-The replay completed the 75-, 95-, 600-, and 900-second captures with zero lost events. The 95-second summary (`series-x-5080-combined-20261128-034650-875.95.txt`) includes a 151.55 ms span for `CopyPageMappings`. The span covers the whole call, including waits, and cannot identify the local mapping planner as the cause.
+The first replay completed the 75-, 95-, and 600-second captures. The second also completed the 900-second capture. Both reported zero lost events. The launches shared a timeline stem, so the second replay's timeline files survive alongside the separate text traces and run settings for both. The 95-second summary (`series-x-5080-combined-20261128-034650-875.95.txt`) includes a 151.55 ms span for `CopyPageMappings`. The span covers the whole call, including waits, and cannot identify the local mapping planner as the cause.
 
 The performance comparison uses complete reports from 15 through 1,110 seconds after each trace first logs the diffuse ambient resolve. Frames with 6,000–8,999 draws and zero pipelines pending had median frame times of 71.1 ms on the reference and 74.9 ms on the combined build. Median CPU preparation moved from 45.4 to 33.1 ms/frame. The comparison matches approximate render workload and elapsed time. It does not match identical frames or streaming events. [Results table](../../results.md#combined-build--xbox-series-x-at-1440p--28-november-2026)
 

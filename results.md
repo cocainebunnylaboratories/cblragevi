@@ -32,7 +32,7 @@ The log confirms that #206 selected the matching depth view and recorded the dif
 
 ## Combined build · Xbox Series X at 1440p · 28 November 2026
 
-The **19:41** combined replay used the **Xbox Series X profile at verified 1440p (2560×1440 windowed game output)**. It used the measured 5080 preset with frame generation off, recorded the corrected diffuse ambient lighting pass, and exited with code 0. The combined build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local page-mapping and one-pass refresh planners, relay diagnostics, and window-sizing changes. The retirement worker was off. [Build provenance and log IDs](docs/cbl/vice-tay-1440p-tuning.md#combined-series-x-1440p-replay)
+Both combined replays used the **Xbox Series X profile at verified 1440p (2560×1440 windowed game output)**. They used the measured 5080 preset with frame generation off, recorded the corrected diffuse ambient lighting pass, and exited with code 0. Process uptime was **11:24** in the first run and **19:41** in the second. The combined build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local page-mapping and one-pass refresh planners, relay diagnostics, and window-sizing changes. The retirement worker was off. [Build provenance and log IDs](docs/cbl/vice-tay-1440p-tuning.md#combined-series-x-1440p-replays)
 
 | Median of comparable report bands | Endurance reference | Combined 19:41 run |
 | --- | ---: | ---: |
