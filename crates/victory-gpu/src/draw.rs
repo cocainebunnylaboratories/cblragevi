@@ -3468,7 +3468,13 @@ impl State {
             size: [of.Width as u32, of.Height],
             slices: u32::from(of.DepthOrArraySize),
         };
-        crate::ambient::after(list, role, &views, indirect)
+        let recorded = crate::ambient::after(list, role, &views, indirect);
+        #[cfg(feature = "diagnostics")]
+        if recorded && role == Role::Resolve {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| tracing::info!("diffuse ambient resolve recorded"));
+        }
+        recorded
     }
 
     /// The view a shader of the bound pipeline reads through a table, at
@@ -3508,6 +3514,12 @@ impl State {
                 let View::Shader(resource, _) = placed.as_ref().unwrap_or(&depth) else {
                     return None;
                 };
+                #[cfg(feature = "diagnostics")]
+                {
+                    static REPORTED: std::sync::Once = std::sync::Once::new();
+                    REPORTED.call_once(|| tracing::info!(stencil_slot = slot, stencil_offset = offset,
+                        depth_slot = at.0, depth_offset = at.1, "diffuse ambient resolve selected a matching depth plane"));
+                }
                 (at, *resource)
             }
             _ => return None,
@@ -5404,16 +5416,19 @@ mod tests {
 
     #[test]
     fn the_reported_stencil_view_requires_its_matching_depth_plane() {
-        let words = [22, 4, 5768, 0, 0, 1, 1, 0, 0, 0];
-        let stencil = View::Shader(1, Some(words));
-        let mut depth = words;
-        depth[0] = 21;
-        depth[6] = 0;
-        assert!(!is_depth_companion(&stencil, &stencil));
-        assert!(is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
-        assert!(!is_depth_companion(&stencil, &View::Shader(2, Some(depth))));
-        depth[4] = 1;
-        assert!(!is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
+        // Check the upstream report's formats and the console pair seen in the 5080 trace.
+        for (stencil_format, depth_format) in [(22, 21), (120, 119)] {
+            let words = [stencil_format, 4, 5768, 0, 0, 1, 1, 0, 0, 0];
+            let stencil = View::Shader(1, Some(words));
+            let mut depth = words;
+            depth[0] = depth_format;
+            depth[6] = 0;
+            assert!(!is_depth_companion(&stencil, &stencil));
+            assert!(is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
+            assert!(!is_depth_companion(&stencil, &View::Shader(2, Some(depth))));
+            depth[4] = 1;
+            assert!(!is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
+        }
     }
 
     #[test]
