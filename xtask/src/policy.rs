@@ -226,7 +226,7 @@ fn longest_hex_literal_run(content: &[u8]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::check;
+    use super::{MAX_FILE_SIZE, check};
 
     /// Enforces the policy wherever tests run, even in clones without the hook.
     #[test]
@@ -263,9 +263,16 @@ mod tests {
             !check("data.bin", b"hello").is_empty(),
             "extension not allowed"
         );
-        assert!(
-            !check("a.rs", &vec![b'a'; 600 * 1024]).is_empty(),
-            "too big"
+    }
+
+    #[test]
+    fn file_size_is_checked_independently_of_embedded_data() {
+        let mut content = vec![b' '; MAX_FILE_SIZE];
+        assert!(check("a.rs", &content).is_empty());
+        content.push(b' ');
+        assert_eq!(
+            check("a.rs", &content),
+            [format!("{} bytes exceeds the {MAX_FILE_SIZE}-byte limit", content.len())]
         );
     }
 

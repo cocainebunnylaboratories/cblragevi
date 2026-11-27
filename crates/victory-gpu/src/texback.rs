@@ -197,8 +197,15 @@ pub(crate) fn record(list: &ID3D12GraphicsCommandList, target: Target) -> Option
     Some(Back { buffer, footprints, rows, mips, layout: target.layout, ticket: target.ticket })
 }
 
+/// Temporary pixels and the layouts reused by one thread returning textures.
+#[derive(Default)]
+pub(crate) struct Scratch {
+    pixels: Vec<u8>,
+    tiling: victory_formats::texture::TilingCache,
+}
+
 /// Once the list has run, tile its texels back into the same title allocation.
-pub(crate) fn land(back: &Back) {
+pub(crate) fn land(back: &Back, scratch: &mut Scratch) {
     static COPIED: AtomicU64 = AtomicU64::new(0);
     static STALE: AtomicU64 = AtomicU64::new(0);
     let _mapping = crate::watch::title_memory_reading();
@@ -212,9 +219,13 @@ pub(crate) fn land(back: &Back) {
     }
     let (at, end) = back.range();
     let size = end - at;
-    let mut tiled = vec![0u8; size];
+    if scratch.pixels.len() < size {
+        scratch.pixels.reserve_exact(size - scratch.pixels.len());
+        scratch.pixels.resize(size, 0);
+    }
+    let tiled = &mut scratch.pixels[..size];
     // Keep title bytes the subresources do not cover.
-    if !crate::host::read_into(at as *const u8, &mut tiled) {
+    if !crate::host::read_into(at as *const u8, tiled) {
         return;
     }
     let buffer = back.buffer.resource();
@@ -235,7 +246,8 @@ pub(crate) fn land(back: &Back) {
         let len = pitch * rows as usize * f.Depth as usize;
         // SAFETY: the subresource's part of the mapped buffer.
         let linear = unsafe { std::slice::from_raw_parts(data.cast::<u8>().add(footprint.Offset as usize), len) };
-        if let Err(e) = back.layout.tile(&mut tiled, mip, slice, linear, pitch, pitch * rows as usize) {
+        let pitches = (pitch, pitch * rows as usize);
+        if let Err(e) = scratch.tiling.tile(&back.layout, tiled, (mip, slice), linear, pitches) {
             static ONCE: std::sync::Once = std::sync::Once::new();
             ONCE.call_once(|| tracing::warn!(?e, mip, slice, "a texture copied back could not be tiled"));
             // SAFETY: mapped above.

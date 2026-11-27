@@ -567,6 +567,18 @@ pub(crate) enum PrepareFailure {
     RootSrvSlot,
 }
 
+/// A failed direct draw or mesh preparation in a frame operation capture.
+#[cfg(all(windows, feature = "diagnostics"))]
+pub(crate) fn direct_prepare_text(this: This, command: &str, why: PrepareFailure) -> String {
+    if this.is_null() {
+        return format!("DROPPED {command} preparation reason={why:?} recipe_key=none");
+    }
+    let pipeline = pipeline(this);
+    let key = pipeline.host.key();
+    let shaders: Vec<_> = pipeline.shaders.iter().map(|s| (s.stage, s.hash.as_str())).collect();
+    format!("DROPPED {command} preparation reason={why:?} recipe_key={key} guest_shaders={shaders:?}")
+}
+
 /// Keep the first example of each failure per recipe, with room for every
 /// kind even when one compute pipeline repeatedly fails during world load.
 #[cfg(all(windows, feature = "diagnostics"))]
@@ -889,6 +901,20 @@ pub fn save_pipeline_cache() {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(all(windows, feature = "diagnostics"))]
+    #[test]
+    fn direct_prepare_capture_identifies_an_unset_pipeline() {
+        let line = super::direct_prepare_text(
+            std::ptr::null_mut(),
+            "mesh",
+            super::PrepareFailure::MissingHostPipeline,
+        );
+        assert_eq!(
+            line,
+            "DROPPED mesh preparation reason=MissingHostPipeline recipe_key=none"
+        );
+    }
+
     #[cfg(all(windows, feature = "diagnostics"))]
     #[test]
     fn indirect_prepare_examples_preserve_each_command_kind() {

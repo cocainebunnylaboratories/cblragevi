@@ -1096,6 +1096,18 @@ pub(crate) enum View {
 }
 
 impl View {
+    #[cfg(all(windows, feature = "diagnostics"))]
+    fn kind_index(&self) -> usize {
+        match self {
+            Self::Constant(..) => 0,
+            Self::Shader(..) => 1,
+            Self::Unordered(..) => 2,
+            Self::Sampler(..) => 3,
+            Self::ConsoleSampler(..) => 4,
+            Self::Placed(..) => 5,
+        }
+    }
+
     /// Whether the view reads buffer memory (constant buffers, buffer views
     /// of resources or of memory) or memory the title placed a texture in:
     /// such views get host slots only for draws.
@@ -1137,13 +1149,10 @@ impl View {
 struct Views {
     /// Each entry's view and generation.
     list: Vec<(View, u32)>,
-    /// How many entries of [`list`](Self::list) hold a constant buffer view
-    /// and how many a view of placed memory (freed ones included, as they
-    /// still hold their view until reused), kept as entries change rather
-    /// than counted for the memory line: that walk over every entry took
-    /// up to 49 ms at 30 million entries.
+    /// Count slot changes so the memory log never has to walk the table.
+    /// A free slot counts toward the kind it last held until it is reused.
     #[cfg(all(windows, feature = "diagnostics"))]
-    address_entries: [u64; 2],
+    kind_usage: [ViewKindUsage; 6],
     index: std::collections::BTreeMap<View, u32>,
     /// Entries naming each resource.
     by_resource: std::collections::BTreeMap<usize, Vec<u32>>,
@@ -1161,6 +1170,21 @@ struct Views {
     ownerless: std::collections::VecDeque<(u32, u32)>,
 }
 
+#[cfg(all(windows, feature = "diagnostics"))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ViewKindUsage {
+    pub(crate) occupied: u64,
+    pub(crate) free: u64,
+}
+
+#[cfg(all(windows, feature = "diagnostics"))]
+impl ViewKindUsage {
+    /// Bytes in the slots themselves, excluding spare capacity and indexes.
+    pub(crate) fn slot_bytes(self) -> u64 {
+        (self.occupied + self.free) * size_of::<(View, u32)>() as u64
+    }
+}
+
 /// Read far more often than written: every slot a draw reads through a
 /// table is looked up here, on several recording threads at once in the
 /// world. Readers share it; only a view not seen before (a new table entry
@@ -1168,7 +1192,7 @@ struct Views {
 static VIEWS: std::sync::RwLock<Views> = std::sync::RwLock::new(Views {
     list: Vec::new(),
     #[cfg(all(windows, feature = "diagnostics"))]
-    address_entries: [0, 0],
+    kind_usage: [ViewKindUsage { occupied: 0, free: 0 }; 6],
     index: std::collections::BTreeMap::new(),
     by_resource: std::collections::BTreeMap::new(),
     free: Vec::new(),
@@ -1388,21 +1412,19 @@ impl Views {
         if current != generation || self.index.get(&view) != Some(&i) {
             return;
         }
-        self.index.remove(&view);
-        self.list[i as usize].1 = ((generation + 1) & GENERATIONS).max(1);
-        self.free.push(i);
+        self.free_entry(i, &view, generation);
     }
 
-    /// Counts `view` in or out of [`address_entries`](Self::address_entries).
-    #[cfg(all(windows, feature = "diagnostics"))]
-    fn count_address(&mut self, view: &View, added: bool) {
-        let kind = match view {
-            View::Constant(..) => 0,
-            View::Placed(..) => 1,
-            _ => return,
-        };
-        let n = &mut self.address_entries[kind];
-        *n = if added { *n + 1 } else { n.saturating_sub(1) };
+    fn free_entry(&mut self, i: u32, view: &View, generation: u32) {
+        self.index.remove(view);
+        self.list[i as usize].1 = ((generation + 1) & GENERATIONS).max(1);
+        #[cfg(all(windows, feature = "diagnostics"))]
+        {
+            let usage = &mut self.kind_usage[view.kind_index()];
+            usage.occupied -= 1;
+            usage.free += 1;
+        }
+        self.free.push(i);
     }
 
     fn entry_made(&mut self, view: View) -> [u32; 2] {
@@ -1412,7 +1434,10 @@ impl Views {
                 let i = match self.free.pop() {
                     Some(i) => {
                         #[cfg(all(windows, feature = "diagnostics"))]
-                        self.count_address(&self.list[i as usize].0.clone(), false);
+                        {
+                            let old_kind = self.list[i as usize].0.kind_index();
+                            self.kind_usage[old_kind].free -= 1;
+                        }
                         self.list[i as usize].0 = view.clone();
                         i
                     }
@@ -1422,7 +1447,9 @@ impl Views {
                     }
                 };
                 #[cfg(all(windows, feature = "diagnostics"))]
-                self.count_address(&view, true);
+                {
+                    self.kind_usage[view.kind_index()].occupied += 1;
+                }
                 for r in view.resources().into_iter().filter(|&r| r != 0) {
                     self.by_resource.entry(r).or_default().push(i);
                 }
@@ -1483,27 +1510,29 @@ fn views_write() -> std::sync::RwLockWriteGuard<'static, Views> {
 /// buffer views and views of placed memory (those that did not fit a
 /// record, or all of them with `VICTORY_VIEW_INLINE=0`), the shapes of
 /// placed views kept, and the views named whole in their records since the
-/// start: constant buffer views, views of placed memory.
+/// start: constant buffer views, views of placed memory. Both the summary and
+/// the per-kind slot counts come from the same read lock.
 #[cfg(all(windows, feature = "diagnostics"))]
-pub(crate) fn views_kept() -> [u64; 8] {
+pub(crate) fn views_kept() -> ([u64; 8], [ViewKindUsage; 6]) {
     use std::sync::atomic::Ordering::Relaxed;
     let views = views_read();
     let each = size_of::<(View, u32)>() as u64;
     let shape = size_of::<Shape>() as u64;
-    let [constants, placed] = views.address_entries;
-    [
+    let [constant, .., placed] = views.kind_usage;
+    let summary = [
         views.list.len() as u64,
         views.free.len() as u64,
         views.list.capacity() as u64 * each
             + views.index.len() as u64 * each * 3 / 2
             + views.shapes.capacity() as u64 * shape
             + views.shape_index.len() as u64 * size_of::<(u64, u32)>() as u64 * 3 / 2,
-        constants,
-        placed,
+        constant.occupied + constant.free,
+        placed.occupied + placed.free,
         views.shapes.len() as u64,
         NAMED_WHOLE[0].load(Relaxed),
         NAMED_WHOLE[1].load(Relaxed),
-    ]
+    ];
+    (summary, views.kind_usage)
 }
 
 impl View {
@@ -1649,12 +1678,9 @@ pub(crate) fn forget(resource: usize) {
         if views.index.get(&view) != Some(&i) || !view.resources().contains(&resource) {
             continue;
         }
-        views.index.remove(&view);
-        // (Below the bits that say a record is no table entry.)
-        views.list[i as usize].1 = ((generation + 1) & GENERATIONS).max(1);
         // The view's other resource (a counter) keeps a stale entry, which
         // `forget` of that resource skips.
-        views.free.push(i);
+        views.free_entry(i, &view, generation);
     }
 }
 
@@ -2311,21 +2337,30 @@ mod tests {
         assert_ne!(constant_words(0x1000, 1 << 14), constant_words(0x1000, 64));
     }
 
-    /// The counts of constant buffer and placed entries the memory line
-    /// reads follow the table as a walk over it would count: a freed entry
-    /// reused for another kind is counted out and in.
+    /// Each slot is counted once as it is freed and reused across kinds.
     #[cfg(all(windows, feature = "diagnostics"))]
     #[test]
     fn diagnostic_counts_follow_distinct_entries_including_reused_slots() {
-        let walk = |views: &Views| {
-            let count = |f: fn(&View) -> bool| views.list.iter().filter(|(v, _)| f(v)).count() as u64;
-            [count(|v| matches!(v, View::Constant(..))), count(|v| matches!(v, View::Placed(..)))]
+        let check = |views: &Views| {
+            let mut expected = [ViewKindUsage::default(); 6];
+            for view in views.index.keys() {
+                expected[view.kind_index()].occupied += 1;
+            }
+            for &i in &views.free {
+                expected[views.list[i as usize].0.kind_index()].free += 1;
+            }
+            assert_eq!(views.kind_usage, expected);
+            assert_eq!(
+                expected.iter().map(|usage| usage.slot_bytes()).sum::<u64>(),
+                (views.list.len() * size_of::<(View, u32)>()) as u64
+            );
         };
         let mut views = Views::default();
-        // A slot freed by forget still holds the old resource view, with its
-        // new generation; it can be reused for a view without a resource.
-        views.list.push((View::Shader(1, None), 2));
-        views.free.push(0);
+        let shader = View::Shader(1, None);
+        let [i, generation] = views.entry(shader.clone());
+        views.free_entry(i, &shader, generation);
+        assert_eq!(views.kind_usage[1], ViewKindUsage { occupied: 0, free: 1 });
+        check(&views);
         let constant = View::Constant(0x1234, 256);
         assert_eq!(views.entry(constant.clone()), [0, 2]);
         assert_eq!(views.entry(constant), [0, 2]);
@@ -2333,16 +2368,18 @@ mod tests {
         let index = views.entry(placed.clone());
         assert_eq!(views.entry(placed), index);
         views.entry(View::Unordered(1, 2, None));
-        assert_eq!(views.address_entries, [1, 1]);
-        assert_eq!(views.address_entries, walk(&views));
+        views.entry(View::Sampler([0; 13]));
+        views.entry(View::ConsoleSampler([0; 27]));
+        assert_eq!(views.kind_usage.map(|usage| usage.occupied), [1, 0, 1, 1, 1, 1]);
+        check(&views);
         // Under a cap of 2, placed views push the constant one out; its
         // freed entry, reused, changes kind.
         for n in 1..6u32 {
             views.entry_kept(View::Placed(false, [n; 14], [n; 16]), 2);
-            assert_eq!(views.address_entries, walk(&views), "after placed view {n}");
+            check(&views);
         }
         views.entry_kept(View::Constant(0x5678, 512), 2);
-        assert_eq!(views.address_entries, walk(&views), "a constant view in a freed entry");
+        check(&views);
     }
 
     /// Entries of views no resource releases stay under their cap: the

@@ -17,7 +17,10 @@ use crate::descriptor::View;
 use windows::Win32::Foundation::RECT;
 use windows::Win32::Graphics::Direct3D::D3D_PRIMITIVE_TOPOLOGY;
 use windows::Win32::Graphics::Direct3D12::*;
-use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT;
+use windows::Win32::Graphics::Dxgi::Common::{
+    DXGI_FORMAT, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
+    DXGI_FORMAT_X24_TYPELESS_G8_UINT, DXGI_FORMAT_X32_TYPELESS_G8X24_UINT,
+};
 use windows::core::Interface;
 
 use crate::host::HostList;
@@ -26,6 +29,44 @@ use crate::pipeline::host::HostPipeline;
 
 #[cfg(feature = "diagnostics")]
 pub(crate) mod rtv_trace;
+
+fn is_depth_srv(desc: &[u32; 10]) -> bool {
+    let format = DXGI_FORMAT(crate::resource::pc_format(desc[0]) as i32);
+    // In a Texture2D SRV, the union starts at word 4 and PlaneSlice is word 6.
+    desc[1] == D3D12_SRV_DIMENSION_TEXTURE2D.0 as u32
+        && desc[6] == 0
+        && !matches!(format, DXGI_FORMAT_X32_TYPELESS_G8X24_UINT | DXGI_FORMAT_X24_TYPELESS_G8_UINT)
+}
+
+/// Accept a depth view of the same subresources as a bound stencil view.
+fn is_depth_companion(stencil: &View, depth: &View) -> bool {
+    let (stencil_desc, depth_desc): (&[u32], &[u32]) = match (stencil, depth) {
+        (View::Shader(a, Some(stencil)), View::Shader(b, Some(depth))) if a == b && *a != 0 => {
+            (stencil, depth)
+        }
+        (View::Placed(false, _, stencil_desc), View::Placed(false, _, depth_desc))
+            if crate::descriptor::host::same_placed_texture(stencil, depth) =>
+        {
+            (stencil_desc, depth_desc)
+        }
+        _ => return false,
+    };
+    let format = |view: &[u32]| DXGI_FORMAT(crate::resource::pc_format(view[0]) as i32);
+    let expected = match format(stencil_desc) {
+        DXGI_FORMAT_X32_TYPELESS_G8X24_UINT => DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS,
+        DXGI_FORMAT_X24_TYPELESS_G8_UINT => DXGI_FORMAT_R24_UNORM_X8_TYPELESS,
+        _ => return false,
+    };
+    let texture_2d = D3D12_SRV_DIMENSION_TEXTURE2D.0 as u32;
+    stencil_desc[1] == texture_2d
+        && depth_desc[1] == texture_2d
+        && stencil_desc[6] == 1
+        && depth_desc[6] == 0
+        && format(depth_desc) == expected
+        && depth_desc[2] == D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING
+        && stencil_desc[4..6] == depth_desc[4..6]
+        && stencil_desc[7] == depth_desc[7]
+}
 
 /// Shader interface metadata shared by every pipeline variant and draw.
 pub(crate) struct TablePlan {
@@ -1181,6 +1222,14 @@ impl State {
         self.pipeline = pipeline as usize;
     }
 
+    /// A host compute library bound its own pipeline, root signature and heaps.
+    pub(crate) fn external_compute(&mut self) {
+        self.host_pipeline = 0;
+        self.host_roots = [0; 2];
+        self.host_heaps = [usize::MAX; 2];
+        self.host_heaps_set = false;
+    }
+
     pub(crate) fn set_heaps(&mut self, heaps: &[This]) {
         self.heaps = [0; 2];
         for &h in heaps {
@@ -1575,6 +1624,29 @@ impl State {
     }
 
     /// As [`State::prepare`], for draws (`mesh` false) or mesh dispatches.
+    fn prepare_direct(&mut self, list: &HostList, indexed: bool, mesh: bool) -> bool {
+        #[cfg(feature = "diagnostics")]
+        {
+            self.prepare_failure = crate::pipeline::PrepareFailure::default();
+        }
+        let ready = self.prepare_for(list, indexed, mesh);
+        #[cfg(feature = "diagnostics")]
+        if !ready {
+            let command = if mesh {
+                "mesh"
+            } else if indexed {
+                "indexed"
+            } else {
+                "draw"
+            };
+            let why = std::mem::take(&mut self.prepare_failure);
+            crate::capture::op(std::ptr::from_ref(list) as usize, || {
+                crate::pipeline::direct_prepare_text(self.pipeline as This, command, why)
+            });
+        }
+        ready
+    }
+
     fn prepare_for(&mut self, list: &HostList, indexed: bool, mesh: bool) -> bool {
         #[cfg(feature = "diagnostics")]
         if crate::pipeline::is_skipped(self.pipeline as This) {
@@ -2314,7 +2386,12 @@ impl State {
                     let placed = crate::descriptor::host::placed_texture(&view);
                     if let Some(&View::Shader(resource, _)) = placed.as_ref().or(Some(&view)) {
                         let resource = resource as This;
-                        let texture = crate::resource::host_resource(resource);
+                        let (texture, deferred) =
+                            crate::residency::upload_deferred_during(|| crate::resource::host_resource(resource));
+                        if deferred {
+                            host.restore_pending_list_flip(item);
+                            continue;
+                        }
                         let title_fills = texture.is_some_and(crate::texture::title_written);
                         let first = match (&placed, &view) {
                             (Some(_), View::Placed(_, _, desc)) => crate::resource::first_mip(desc),
@@ -2328,9 +2405,9 @@ impl State {
                             && (sync.is_some() || !crate::texture::unchanged(resource, first))
                         {
                             let was_staged = crate::texture::is_staged(resource);
-                            let _ = crate::residency::take_staging_deferred();
-                            readable(list, sampled.kind, &view);
-                            let failed = crate::residency::take_staging_deferred() || crate::residency::upload_refused();
+                            let (_, deferred) =
+                                crate::residency::upload_deferred_during(|| readable(list, sampled.kind, &view));
+                            let failed = deferred || crate::residency::upload_refused();
                             if !was_staged {
                                 crate::texture::unstage(resource);
                             }
@@ -2344,7 +2421,11 @@ impl State {
                 if let Some(sync) = sync.as_deref_mut() {
                     sync.publish.push((index, handle, key));
                 } else {
-                    let _ = host.mirror(index, handle, true);
+                    let (_, deferred) = crate::residency::upload_deferred_during(|| host.mirror(index, handle, true));
+                    if deferred {
+                        host.restore_pending_list_flip(item);
+                        continue;
+                    }
                 }
                 promoted += 1;
             }
@@ -2945,41 +3026,53 @@ impl State {
             // The view and the record it came from are read once: the upload
             // and whatever shows the slot later refer to that record, not to
             // one the title wrote to the slot meanwhile.
-            let (view, upload_key) = if sync_bake || shows_other || late {
-                match heap.handle(index).and_then(|handle| host.prepare_texture_slot(index, handle)) {
-                    Some((view, key)) => (Some(view), Some(key)),
-                    None => (None, None),
-                }
-            } else {
-                let view = heap.handle(index).and_then(|handle| host.mirror(index, handle, true));
-                (view, None)
+            let ((view, upload_key, placed), deferred) = crate::residency::upload_deferred_during(|| {
+                let (view, upload_key) = if sync_bake || shows_other || late {
+                    match heap.handle(index).and_then(|handle| host.prepare_texture_slot(index, handle)) {
+                        Some((view, key)) => (Some(view), Some(key)),
+                        None => (None, None),
+                    }
+                } else {
+                    let view = heap.handle(index).and_then(|handle| host.mirror(index, handle, true));
+                    (view, None)
+                };
+                let placed = view.as_ref().and_then(crate::descriptor::host::placed_texture);
+                (view, upload_key, placed)
+            });
+            let mirror_deferred = || {
+                crate::residency::upload_deferred_during(|| {
+                    if let Some(handle) = heap.handle(index) {
+                        let _ = host.mirror(index, handle, true);
+                    }
+                }).1
             };
-            let at_once = || {
-                if (late || (sync_bake && upload_key.is_some())) && let Some(handle) = heap.handle(index) {
-                    let _ = host.mirror(index, handle, true);
-                }
-            };
-            let placed = view.as_ref().and_then(crate::descriptor::host::placed_texture);
-            if crate::residency::upload_refused() {
+            let at_once_deferred = || (late || (sync_bake && upload_key.is_some())) && mirror_deferred();
+            if deferred || crate::residency::upload_refused() {
                 served = false;
                 break;
             }
             let resource = match placed.as_ref().or(view.as_ref()) {
                 Some(&View::Shader(resource, _)) => resource as This,
                 _ => {
-                    at_once();
+                    if at_once_deferred() {
+                        served = false;
+                        break;
+                    }
                     host.texture_slot_done(index, write, None);
                     continue;
                 }
             };
-            let texture = crate::resource::host_resource(resource);
-            if crate::residency::upload_refused() {
+            let (texture, deferred) = crate::residency::upload_deferred_during(|| crate::resource::host_resource(resource));
+            if deferred || crate::residency::upload_refused() {
                 served = false;
                 break;
             }
             let title_fills = texture.is_some_and(crate::texture::title_written);
             if !title_fills {
-                at_once();
+                if at_once_deferred() {
+                    served = false;
+                    break;
+                }
                 // a render target, a depth or unordered access texture: the host's own
                 host.texture_slot_done(index, write, None);
                 continue;
@@ -2995,25 +3088,27 @@ impl State {
             };
             let same = !tabled && crate::texture::unchanged(resource, first);
             if same {
-                HEAP_TEXTURES_SAME.fetch_add(1, Ordering::Relaxed);
                 if let (Some(sync), Some(key), Some(handle)) = (sync.as_deref_mut(), upload_key, heap.handle(index)) {
                     if let Some(copy) = crate::resource::host_copy(resource) {
                         sync.keep.push(copy);
                     }
                     sync.publish.push((index, handle, key));
                 } else {
-                    if shows_other && let Some(handle) = heap.handle(index) {
-                        let _ = host.mirror(index, handle, true);
+                    if shows_other && mirror_deferred() {
+                        served = false;
+                        break;
                     }
                     // Its bytes are in, or on the way there in a list before.
                     if late && texture.is_some_and(crate::pool::fresh) && !crate::texture::ahead::there(resource) {
                         if let (Some(handle), Some(key)) = (heap.handle(index), upload_key) {
                             host.texture_slot_show_after(list, index, handle, key);
                         }
-                    } else {
-                        at_once();
+                    } else if at_once_deferred() {
+                        served = false;
+                        break;
                     }
                 }
+                HEAP_TEXTURES_SAME.fetch_add(1, Ordering::Relaxed);
                 let again = partly.map(|mapped| (frame + 1, mapped));
                 let memory = if again.is_none() && heap_recheck() { crate::texture::title_span(resource, first) } else { None };
                 match memory {
@@ -3047,22 +3142,21 @@ impl State {
                 break;
             }
             let late = late && ahead.is_none();
-            let _ = crate::residency::take_staging_deferred();
-            if let Some(view) = &view
-                && ahead.is_none()
-            {
-                // (What was found mapped of it a moment ago is not asked
-                // again, unless the host copy may need more.)
-                crate::texture::PICKING.set(Some(there.filter(|_| partly.is_none()).unwrap_or(u64::MAX)));
-                readable(list, sampled.kind, view);
-                crate::texture::PICKING.set(None);
-            }
-            // A failed or deferred staging allocation leaves this slot due.
+            let (_, deferred) = crate::residency::upload_deferred_during(|| {
+                if let Some(view) = &view
+                    && ahead.is_none()
+                {
+                    // (What was found mapped of it a moment ago is not asked
+                    // again, unless the host copy may need more.)
+                    crate::texture::PICKING.set(Some(there.filter(|_| partly.is_none()).unwrap_or(u64::MAX)));
+                    readable(list, sampled.kind, view);
+                    crate::texture::PICKING.set(None);
+                }
+            });
+            // An upload or backing deferred under memory pressure leaves this slot due.
             // Publishing it or marking it served would lose the only retry for
             // some materials.
-            if ahead.is_none()
-                && (crate::residency::take_staging_deferred() || crate::residency::upload_refused())
-            {
+            if ahead.is_none() && (deferred || crate::residency::upload_refused()) {
                 served = false;
                 break;
             }
@@ -3273,53 +3367,114 @@ impl State {
         unsafe { list.list.Dispatch(x, y, z) };
         self.buffers_written();
         DISPATCHED.fetch_add(1, Ordering::Relaxed);
+        use crate::ambient::{Dispatched, Role, note_reflect};
+        let reflect = p.stages.first().and_then(|s| s.shader.ambient) == Some(Role::Reflect);
+        if reflect && (x == 0 || y == 0 || z == 0) {
+            // No groups: the resolve writes nothing, and the hold would
+            // rewrite the image's earlier contents.
+            if crate::ambient::holds() {
+                note_reflect(Dispatched::Empty);
+            }
+            if p.stages.first().is_some_and(|s| s.shader.probe.is_some()) {
+                self.light_probe(list, p, true);
+            }
+        } else if self.after_dispatch(list, p, None) == Some(Role::Reflect) {
+            note_reflect(Dispatched::Direct);
+        }
+    }
+
+    /// What follows a dispatch of `p`, direct or indirect: the stand-in for
+    /// the indirect light and the light probe. The stand-in's role, if it
+    /// recorded anything.
+    fn after_dispatch(
+        &mut self,
+        list: &HostList,
+        p: &HostPipeline,
+        indirect: Option<crate::ambient::IndirectHold<'_>>,
+    ) -> Option<crate::ambient::Role> {
+        let mut recorded = None;
         if let Some(role) = p.stages.first().and_then(|s| s.shader.ambient)
             && crate::ambient::on()
-            && self.ambient(list, p, role)
+            && self.ambient(list, p, role, indirect)
         {
             self.host_pipeline = 0;
             self.host_roots[1] = 0;
+            recorded = Some(role);
         }
         if p.stages.first().is_some_and(|s| s.shader.probe.is_some()) {
             self.light_probe(list, p, true);
         }
+        recorded
     }
 
     /// The stand-in for the indirect light after a dispatch of `p`
     /// (`crate::ambient`). Whether it recorded anything.
-    fn ambient(&self, list: &HostList, p: &HostPipeline, role: crate::ambient::Role) -> bool {
-        use crate::ambient::{AIR, DEPTH, LIGHT, RADIANCE, Role, Views};
+    fn ambient(
+        &self,
+        list: &HostList,
+        p: &HostPipeline,
+        role: crate::ambient::Role,
+        indirect: Option<crate::ambient::IndirectHold<'_>>,
+    ) -> bool {
+        use crate::ambient::{AIR, DEPTH, LIGHT, RADIANCE, REFLECTIONS, Role, Views};
         let Some(t) = p.stages.first().map(|s| s.translated()) else {
             return false;
         };
         let entry = |kind: ResourceType, at: (u8, u32)| self.table_view(t, true, kind, at);
-        let at = match role {
-            Role::Resolve => LIGHT,
-            Role::Radiance => RADIANCE,
-            Role::Air => AIR,
+        let image = match role {
+            Role::Resolve => entry(ResourceType::Uav, LIGHT),
+            Role::Radiance => entry(ResourceType::Uav, RADIANCE),
+            Role::Air => entry(ResourceType::Uav, AIR),
+            // The first of the places that holds a 2D image of the format.
+            Role::Reflect => REFLECTIONS.iter().find_map(|&at| {
+                entry(ResourceType::Uav, at).filter(|(d, _)| {
+                    d.Format.0 == 42 && d.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D
+                })
+            }),
         };
-        let image = entry(ResourceType::Uav, at);
-        let depth = match role {
-            Role::Resolve => entry(ResourceType::Srv, DEPTH),
-            Role::Radiance | Role::Air => image,
-        };
-        let (Some((of, image)), Some((seen, depth))) = (image, depth) else {
-            once!(?role, "no stand-in for the indirect light: other tables");
+        let Some((of, image)) = image else {
+            once!(?role, "no stand-in for the indirect light: missing image UAV");
             return false;
         };
+        let depth = if role == Role::Resolve {
+            let Some((seen, depth)) = entry(ResourceType::Srv, DEPTH) else {
+                once!(?role, "no stand-in for the indirect light: missing depth SRV");
+                return false;
+            };
+            if seen.Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE2D
+                || seen.SampleDesc.Count != 1
+                || (seen.Width, seen.Height) != (of.Width, of.Height)
+            {
+                once!(?role, "no stand-in for the indirect light: depth dimensions differ");
+                return false;
+            }
+            Some(depth)
+        } else {
+            None
+        };
         // (R32_UINT holding R9G9B9E5; R11G11B10_FLOAT.)
-        let format = if role == Role::Resolve { 42 } else { 26 };
+        let format = match role {
+            Role::Resolve | Role::Reflect => 42,
+            Role::Radiance | Role::Air => 26,
+        };
         let volume = of.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-        if of.Format.0 != format || (seen.Width, seen.Height) != (of.Width, of.Height) || volume != (role == Role::Air) {
+        if of.Format.0 != format || volume != (role == Role::Air) {
             once!(?role, format = of.Format.0, "no stand-in for the indirect light: another image");
             return false;
         }
-        crate::ambient::after(list, role, &Views {
+        let views = Views {
             image,
             depth,
             size: [of.Width as u32, of.Height],
             slices: u32::from(of.DepthOrArraySize),
-        })
+        };
+        let recorded = crate::ambient::after(list, role, &views, indirect);
+        #[cfg(feature = "diagnostics")]
+        if recorded && role == Role::Resolve {
+            static REPORTED: std::sync::Once = std::sync::Once::new();
+            REPORTED.call_once(|| tracing::info!("diffuse ambient resolve recorded"));
+        }
+        recorded
     }
 
     /// The view a shader of the bound pipeline reads through a table, at
@@ -3337,11 +3492,36 @@ impl State {
         t.used.iter().find(|u| {
             u.kind == kind && u.root == RootType::Table && (u.slot, u.table_offset_dwords) == (slot, offset)
         })?;
-        let Some(Root::Table(table)) = self.roots_ref(compute).get(usize::from(slot)) else {
-            return None;
-        };
-        let resource = match crate::descriptor::view(table + u64::from(offset) * 4)? {
-            View::Shader(r, _) | View::Unordered(r, ..) => r,
+        let view = self.bound_table_view(compute, (slot, offset))?;
+        let placed = crate::descriptor::host::placed_texture(&view);
+        let ((slot, offset), resource) = match (kind, placed.as_ref().unwrap_or(&view)) {
+            (ResourceType::Srv, View::Shader(r, desc)) if desc.as_ref().is_none_or(is_depth_srv) => {
+                ((slot, offset), *r)
+            }
+            (ResourceType::Uav, View::Unordered(r, ..)) => ((slot, offset), *r),
+            (ResourceType::Srv, _) if compute && (slot, offset) == crate::ambient::DEPTH => {
+                // The diffuse resolve can bind the stencil plane at the usual
+                // slot. Use a depth view already read by the same dispatch.
+                let (at, depth) = t.used.iter()
+                    .filter(|u| u.kind == ResourceType::Srv && u.root == RootType::Table)
+                    .map(|u| (u.slot, u.table_offset_dwords))
+                    .filter(|at| *at != (slot, offset))
+                    .find_map(|at| {
+                        let depth = self.bound_table_view(compute, at)?;
+                        is_depth_companion(&view, &depth).then_some((at, depth))
+                    })?;
+                let placed = crate::descriptor::host::placed_texture(&depth);
+                let View::Shader(resource, _) = placed.as_ref().unwrap_or(&depth) else {
+                    return None;
+                };
+                #[cfg(feature = "diagnostics")]
+                {
+                    static REPORTED: std::sync::Once = std::sync::Once::new();
+                    REPORTED.call_once(|| tracing::info!(stencil_slot = slot, stencil_offset = offset,
+                        depth_slot = at.0, depth_offset = at.1, "diffuse ambient resolve selected a matching depth plane"));
+                }
+                (at, *resource)
+            }
             _ => return None,
         };
         let start = match self.ambient_tables.iter().find(|m| m.0 == slot) {
@@ -3351,7 +3531,14 @@ impl State {
         let host = crate::resource::host_resource(resource as This)?;
         // SAFETY: a live resource.
         let desc = unsafe { host.GetDesc() };
-        Some((desc, heap.gpu_handle((start + offset * 4) / 32)))
+        Some((desc, heap.gpu_handle(start.checked_add(offset.checked_mul(4)?)? / 32)))
+    }
+
+    fn bound_table_view(&self, compute: bool, (slot, offset): (u8, u32)) -> Option<View> {
+        let Some(Root::Table(table)) = self.roots_ref(compute).get(usize::from(slot)) else {
+            return None;
+        };
+        crate::descriptor::view(table.checked_add(u64::from(offset) * 4)?)
     }
 
     /// The place in the bound view heap of the view a shader of the bound
@@ -3670,7 +3857,7 @@ impl State {
         self.trace("mesh", x, 0);
         let ran = mesh_test() != 1
             && mesh_kept(self.pipeline)
-            && self.prepare_for(list, false, true)
+            && self.prepare_direct(list, false, true)
             && match list.list.cast::<ID3D12GraphicsCommandList6>() {
                 Ok(l6) => {
                     #[cfg(feature = "diagnostics")]
@@ -3990,6 +4177,7 @@ impl State {
                         .map(|u| u.kind)
                         .or_else(|| selected.binary_search(&k).ok().and(listed.kind));
                     let was = (listed.ready, listed.tabled);
+                    let mut read = kind.is_some();
                     if let Some(kind) = kind {
                         let tested = TESTED_DEPTH.get();
                         if kind == ResourceType::Srv && listed.ready.0 == list.epoch() && listed.ready.1 == tested.0 {
@@ -3997,25 +4185,28 @@ impl State {
                                 TESTED_DEPTH.set((tested.0, true));
                             }
                         } else if let Some(view) = crate::descriptor::host::listed_view(recording, words) {
-                            let _ = crate::residency::take_staging_deferred();
                             TESTED_DEPTH.set((tested.0, false));
-                            readable(list, kind, &view);
+                            let (_, deferred) = crate::residency::upload_deferred_during(|| readable(list, kind, &view));
                             let depth = TESTED_DEPTH.get().1;
                             TESTED_DEPTH.set((tested.0, tested.1 || depth));
-                            if kind == ResourceType::Srv && !crate::residency::take_staging_deferred() {
+                            read = !deferred;
+                            if kind == ResourceType::Srv && read {
                                 listed.ready = (list.epoch(), tested.0, depth);
                             }
                         }
                     }
                     if let Some(title) = title_first
                         && listed.texture
-                        && listed.tabled != Some((title + k, kind.is_some()))
+                        && listed.tabled != Some((title + k, read))
                     {
-                        listed.tabled = Some((title + k, kind.is_some()));
-                        host.texture_slot_tabled(title + k, kind.is_some());
-                        if kind.is_some() {
-                            host.mirror_after(list, title + k, table + u64::from(k) * 32);
+                        if read {
+                            let (_, deferred) = crate::residency::upload_deferred_during(|| {
+                                host.mirror_after(list, title + k, table + u64::from(k) * 32);
+                            });
+                            read = !deferred;
                         }
+                        listed.tabled = Some((title + k, read));
+                        host.texture_slot_tabled(title + k, read);
                     }
                     if was != (listed.ready, listed.tabled) {
                         crate::descriptor::host::note_listed(recording, words, listed);
@@ -4048,13 +4239,15 @@ impl State {
                         host.constant_at(index, &buffer, gpu, size);
                     }
                     Some(view) => {
-                        host.make_at(index, &view);
                         let kind = used.map(|u| u.kind).or_else(|| {
                             selected.binary_search(&k).ok().and_then(|_| view_kind(&view))
                         });
-                        if let Some(kind) = kind {
-                            readable(list, kind, &view);
-                        }
+                        let (_, deferred) = crate::residency::upload_deferred_during(|| {
+                            host.make_at(index, &view);
+                            if let Some(kind) = kind {
+                                readable(list, kind, &view);
+                            }
+                        });
                         // The title's slot is a table's: out of the queue
                         // of textures picked by index if the draw read it
                         // (its texture is up to date now), and made in
@@ -4063,10 +4256,14 @@ impl State {
                         if let Some(title) = title_first
                             && crate::descriptor::host::is_texture_view(&view)
                         {
-                            host.texture_slot_tabled(title + k, kind.is_some());
-                            if kind.is_some() {
-                                host.mirror_after(list, title + k, table + u64::from(k) * 32);
+                            let mut read = kind.is_some() && !deferred;
+                            if read {
+                                let (_, deferred) = crate::residency::upload_deferred_during(|| {
+                                    host.mirror_after(list, title + k, table + u64::from(k) * 32);
+                                });
+                                read = !deferred;
                             }
+                            host.texture_slot_tabled(title + k, read);
                         }
                     }
                     None => {
@@ -4159,7 +4356,7 @@ impl State {
         self.window = None;
         #[cfg(feature = "diagnostics")]
         self.trace("draw", vertices, first);
-        let ready = self.prepare(list, false);
+        let ready = self.prepare_direct(list, false, false);
         // A pipeline with the rectangle geometry stage draws the title's
         // vertices as they are; any other gets its rectangles expanded.
         let rects = self.topology == RECTANGLES && !self.completes_rects();
@@ -4279,7 +4476,7 @@ impl State {
         if lost {
             once!("indexed rectangles not drawn");
         }
-        let ran = !lost && self.prepare(list, true);
+        let ran = !lost && self.prepare_direct(list, true, false);
         if ran {
             #[cfg(feature = "diagnostics")]
             list.note_op(|| self.op_text(format!("indexed {indices}x{instances}"), false));
@@ -4652,6 +4849,26 @@ impl State {
         // back (`crate::indirect`).
         if kind == DISPATCH {
             DISPATCHED.fetch_add(1, Ordering::Relaxed);
+            // Only the reflections' resolve is followed here; the other
+            // roles keep to direct dispatches. A single uncounted record
+            // can be checked inside the hold, using the clamped dimensions.
+            use crate::ambient::{Dispatched, IndirectHold, Role, note_reflect};
+            if p.stages.first().and_then(|s| s.shader.ambient) == Some(Role::Reflect) {
+                if counter.is_some() {
+                    if crate::ambient::on() && crate::ambient::holds() {
+                        note_reflect(Dispatched::Counted);
+                    }
+                } else if max == 1 {
+                    if let Ok(at) = u32::try_from(at)
+                        && self.after_dispatch(list, p, Some(IndirectHold { buffer: &bounded, at }))
+                            == Some(Role::Reflect)
+                    {
+                        note_reflect(Dispatched::Indirect);
+                    }
+                } else if max > 1 && crate::ambient::on() && crate::ambient::holds() {
+                    note_reflect(Dispatched::Multiple);
+                }
+            }
         } else {
             DRAWN.fetch_add(1, Ordering::Relaxed);
         }
@@ -5175,7 +5392,44 @@ fn staging_budget_per_frame(vram_budget: Option<u64>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::staging_budget_per_frame;
+    use super::{View, is_depth_companion, is_depth_srv, staging_budget_per_frame};
+
+    #[test]
+    fn depth_srv_checks_the_plane_not_the_number_of_levels() {
+        use windows::Win32::Graphics::Direct3D12::{D3D12_SRV_DIMENSION_TEXTURE2D, D3D12_SRV_DIMENSION_TEXTURE2DARRAY};
+        use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_R24_UNORM_X8_TYPELESS, DXGI_FORMAT_X24_TYPELESS_G8_UINT};
+
+        let mut desc = [0; 10];
+        desc[0] = DXGI_FORMAT_R24_UNORM_X8_TYPELESS.0 as u32;
+        desc[1] = D3D12_SRV_DIMENSION_TEXTURE2D.0 as u32;
+        desc[5] = 1;
+        assert!(is_depth_srv(&desc));
+        desc[6] = 1;
+        assert!(!is_depth_srv(&desc));
+        desc[6] = 0;
+        desc[0] = DXGI_FORMAT_X24_TYPELESS_G8_UINT.0 as u32;
+        assert!(!is_depth_srv(&desc));
+        desc[0] = DXGI_FORMAT_R24_UNORM_X8_TYPELESS.0 as u32;
+        desc[1] = D3D12_SRV_DIMENSION_TEXTURE2DARRAY.0 as u32;
+        assert!(!is_depth_srv(&desc));
+    }
+
+    #[test]
+    fn the_reported_stencil_view_requires_its_matching_depth_plane() {
+        // Check the upstream report's formats and the console pair seen in the 5080 trace.
+        for (stencil_format, depth_format) in [(22, 21), (120, 119)] {
+            let words = [stencil_format, 4, 5768, 0, 0, 1, 1, 0, 0, 0];
+            let stencil = View::Shader(1, Some(words));
+            let mut depth = words;
+            depth[0] = depth_format;
+            depth[6] = 0;
+            assert!(!is_depth_companion(&stencil, &stencil));
+            assert!(is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
+            assert!(!is_depth_companion(&stencil, &View::Shader(2, Some(depth))));
+            depth[4] = 1;
+            assert!(!is_depth_companion(&stencil, &View::Shader(1, Some(depth))));
+        }
+    }
 
     #[test]
     fn staging_budget_scales_with_vram_budget() {
