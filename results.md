@@ -30,6 +30,20 @@ These are medians of roughly five-second reports ending within the specified sce
 
 The log confirms that #206 selected the matching depth view and recorded the diffuse ambient lighting pass. Crucial scene-dependent artifacts remained. Pink tint was visible on Lucia’s hair through the police-car window around 02:23 and occasionally on foliage when moving during a scene load. It was less evident than the earlier Jason slot 2 observations. Low-light shadows could still be very dark. Screenshots show hard-edged dark rectangles on water during Gone Fishing and the flight sequence. Models, buildings and dry terrain generally looked intact. Some low-detail models at the start of Chapter 1 resolved after a few seconds.
 
+## Combined build · Xbox Series X at 1440p · 28 November 2026
+
+Both combined replays used the **Xbox Series X profile at verified 1440p (2560×1440 windowed game output)**. They used the measured 5080 preset with frame generation off, recorded the corrected diffuse ambient lighting pass, and exited with code 0. Process uptime was **11:24** in the first run and **19:41** in the second. The combined build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local page-mapping and one-pass refresh planners, relay diagnostics, and window-sizing changes. The retirement worker was off. [Build provenance and log IDs](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/7db55cb5/docs/cbl/vice-tay-1440p-tuning.md#combined-series-x-1440p-replays)
+
+| Median of comparable report bands | Endurance reference | Combined 19:41 run |
+| --- | ---: | ---: |
+| FPS at or above 1,000 draws/frame | 15.3 (188 reports) | 14.7 (200 reports) |
+| FPS at 4,000–5,999 draws/frame, zero pipelines pending | 15.5 (59 reports) | 15.8 (77 reports) |
+| FPS at 6,000–8,999 draws/frame, zero pipelines pending | 14.1 (25 reports) | 13.4 (19 reports) |
+| CPU preparation in the 6,000–8,999 band | 45.4 ms/frame | 33.1 ms/frame |
+| Copy-back time in the 6,000–8,999 band | 16.6 ms/frame | 18.0 ms/frame |
+
+The comparison uses complete reports between 15 and 1,110 seconds after the first recorded diffuse ambient resolve in each run. CPU preparation was **12.3 ms/frame lower** in the heavier draw band. The FPS results varied by band, and the scenes and streaming workload differed. This comparison does not establish a sustained FPS gain or isolate the effect of an individual patch. The 95-second capture in the longer run included a **151.55 ms** page-mapping call, which warrants a closer look at the wait and mapping work inside that call. The 72:53 endurance reference remains the longest recorded session.
+
 ## Jason slot 2 · 28 November 2026
 
 The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440p (2560×1440 game output), and the larger Windows page file. The two candidate builds each applied one patch to that pin.

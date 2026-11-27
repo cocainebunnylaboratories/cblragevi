@@ -8,6 +8,8 @@ The earlier gameplay samples reached **roughly 12–15 FPS using the Xbox Series
 
 The longest recorded session is **72 min 53 s** using the **Xbox Series X profile at verified 1440p (2560×1440 game output)**. The manual Prison V1 playthrough went from Lucia in prison through Chapter 1 and Jason free roam, followed by an idle check, a manual save and a clean exit. The median of the gameplay and cutscene reports before idle was **14.5 FPS**. This run used the reference with Petr Seifert’s #285 and Taynan Piza’s #206, preserved on `vice-tay-5080-tuning-unpatch`. The tuning branch layers our local optimizations onto that reference. The performance target is **25 FPS (40 ms/frame)**. [Run history and credits](results.md#prison-v1-endurance--28-november-2026)
 
+The 72:53 endurance run used reference source `2fb36ee1`, which also supplies the runtime on `main`. The separate **11:24** and **19:41** Series X 1440p replays used the combined build from `vice-tay-5080-tuning` at `0c6b941c`. The combined replays showed less CPU preparation in the heavier draw band, with mixed FPS results. [Endurance reference source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/2fb36ee1) · [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c) · [Combined replay results](results.md#combined-build--xbox-series-x-at-1440p--28-november-2026)
+
 ## Build and launch
 
 Use `vice-tay-5080-tuning` for the scripts, build commands and tuning settings below. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/5080-tuning.md#open-world-performance-replay)
