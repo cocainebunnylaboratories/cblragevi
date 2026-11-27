@@ -215,9 +215,23 @@ enum Does {
     /// A refresh of a host copy (named by its address).
     Refresh { shadow: usize, from: usize, to: usize },
     /// A copy that its list does on the card ([`place`]).
-    Placed { dst: usize, src: usize, len: usize },
+    /// `from_cpu`: whether it copies from CPU upload memory rather than a
+    /// source host copy on the card.
+    Placed { dst: usize, src: usize, len: usize, from_cpu: bool },
+    /// A shader dispatch/draw in the submission declares writes to `[from, to)`.
+    GpuWrite { from: usize, to: usize },
     /// Anything, anywhere.
     Run,
+}
+
+/// One step chosen by [`plan`]: index in `does`, execution level, and an
+/// optional redirected source address (for a fill reading through an earlier
+/// card-sourced placed copy in the same submission).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Planned {
+    index: usize,
+    level: u32,
+    redirect: Option<usize>,
 }
 
 fn meet(a: (usize, usize), b: (usize, usize)) -> bool {
@@ -252,7 +266,7 @@ fn touched(ranges: &[(usize, usize)], r: (usize, usize)) -> bool {
 /// Steps of a level are done together, every read before every write; a
 /// step that writes what an earlier one reads or writes, or reads what it
 /// writes, is of a higher level. Our list does them level by level.
-fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, usize)>) -> Result<Vec<(usize, u32)>, &'static str> {
+fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, usize)>) -> Result<Vec<Planned>, &'static str> {
     let takes = |d: &Does| match *d {
         Does::Copy { .. } if stage < 2 => Err("a buffer copy (VICTORY_CARD_STEPS=2 does it on the card)"),
         Does::Fill { to: false, .. } => Err("a fill of memory the card cannot be given the bytes of"),
@@ -306,18 +320,77 @@ fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, u
     // A copy at its place in a list comes after what is done in front of all
     // of them: as it should after the steps ahead of it, but not after those
     // behind it that read or write its bytes.
+    //
+    // Under `by_order` (`VICTORY_PLACED_ORDER=1`), a taken `Fill` behind a
+    // card-sourced placed copy `P` whose source lies wholly inside `P`'s
+    // destination can read `P`'s source host copy at the matching offset in
+    // the front list instead of refusing the whole submission — provided no
+    // earlier placed copy or copy anywhere in the submission writes `P`'s
+    // source, and no intervening step overwrites the fill's bytes.
+    let mut redirects: Vec<Option<usize>> = vec![None; does.len()];
     for (p, d) in does.iter().enumerate() {
-        if let Does::Placed { dst, src, len } = *d
+        if let Does::Placed { dst, src, len, from_cpu } = *d
             && (touched(&read, (dst, dst + len)) || touched(&written, (dst, dst + len)) || touched(&written, (src, src + len)))
         {
             let (to, from) = ((dst, dst + len), (src, src + len));
             let in_the_way = |i: usize| {
                 reads_writes(&does[i]).is_some_and(|(r, w)| meet(r, to) || w.0 < w.1 && (meet(w, to) || meet(w, from)))
             };
-            let found = (p + 1..does.len()).find(|&i| taken[i] && in_the_way(i));
-            *behind = found.map(|i| (p, i));
-            if !by_order || found.is_some() {
+            if !by_order {
+                let found = (p + 1..does.len()).find(|&i| taken[i] && in_the_way(i));
+                *behind = found.map(|i| (p, i));
                 return Err(BEHIND_PLACED);
+            }
+            let src_clean = || {
+                !does.iter().enumerate().any(|(k, step)| match *step {
+                    Does::Copy { dst: cd, len: cl, .. } => meet((cd, cd + cl), from),
+                    Does::Placed { dst: pd, len: pl, .. } if k < p => meet((pd, pd + pl), from),
+                    Does::GpuWrite { from: gf, to: gt } if k < p => meet((gf, gt), from),
+                    _ => false,
+                })
+            };
+            let mut src_checked: Option<bool> = None;
+            // What stands between the copy and the step looked at, gathered
+            // on the way: the later copies at their places, and what else
+            // writes title memory there. (`place.rs` calls `title_written()`
+            // for every `Step::Placed`, which clears `gpu_written`: a shader
+            // write behind `p` is declared again as a `Step::GpuWrite` behind
+            // it.)
+            let mut later_placed: Vec<(usize, usize)> = Vec::new();
+            let mut writes_between: Vec<(usize, usize)> = Vec::new();
+            for r in p + 1..does.len() {
+                if taken[r] && in_the_way(r) {
+                    let Does::Fill { src: f_src, len: f_len, .. } = does[r] else {
+                        *behind = Some((p, r));
+                        return Err(BEHIND_PLACED);
+                    };
+                    let f_range = (f_src, f_src + f_len);
+                    // If a later placed copy before `r` also writes `f_range`,
+                    // `p` is shadowed only when that later copy covers `f_range`
+                    // completely (and will be validated when the loop reaches it).
+                    if let Some(&(ld, le)) = later_placed.iter().rev().find(|&&later| meet(later, f_range)) {
+                        if f_src >= ld && f_src + f_len <= le {
+                            continue;
+                        }
+                        *behind = Some((p, r));
+                        return Err(BEHIND_PLACED);
+                    }
+                    let inside = f_src >= dst && f_src + f_len <= dst + len;
+                    let dst_clean_between = !writes_between.iter().any(|&w| meet(w, f_range));
+                    let ok = !from_cpu && inside && dst_clean_between && *src_checked.get_or_insert_with(src_clean);
+                    if !ok {
+                        *behind = Some((p, r));
+                        return Err(BEHIND_PLACED);
+                    }
+                    redirects[r] = Some(src + (f_src - dst));
+                    continue;
+                }
+                match does[r] {
+                    Does::Placed { dst: pd, len: pl, .. } => later_placed.push((pd, pd + pl)),
+                    Does::Copy { dst: cd, len: cl, .. } => writes_between.push((cd, cd + cl)),
+                    Does::GpuWrite { from: gf, to: gt } => writes_between.push((gf, gt)),
+                    _ => {}
+                }
             }
         }
     }
@@ -344,12 +417,20 @@ fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, u
             _ => {}
         }
     }
-    let mut out: Vec<(usize, u32)> = Vec::with_capacity(order.len());
+    let effective_rw = |i: usize| -> Option<((usize, usize), (usize, usize))> {
+        let (r, w) = reads_writes(&does[i])?;
+        let r = match redirects[i] {
+            Some(new_src) => (new_src, new_src + (r.1 - r.0)),
+            None => r,
+        };
+        Some((r, w))
+    };
+    let mut out: Vec<Planned> = Vec::with_capacity(order.len());
     // The copies among them, which alone put others behind them or have to
     // stand behind others.
     let mut copies: Vec<usize> = Vec::new();
     for &i in &order {
-        let Some((r, w)) = reads_writes(&does[i]) else {
+        let Some((r, w)) = effective_rw(i) else {
             continue;
         };
         let writes = w.0 < w.1;
@@ -359,8 +440,8 @@ fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, u
         let ahead: Box<dyn Iterator<Item = usize>> =
             if writes { Box::new(0..out.len()) } else { Box::new(copies.iter().copied()) };
         for k in ahead {
-            let (j, at): (usize, u32) = out[k];
-            let Some((jr, jw)) = reads_writes(&does[j]) else {
+            let Planned { index: j, level: at, .. } = out[k];
+            let Some((jr, jw)) = effective_rw(j) else {
                 continue;
             };
             if at >= level && (meet(jw, r) || meet(jw, w) || meet(jr, w)) {
@@ -370,7 +451,11 @@ fn plan(does: &[Does], stage: u32, by_order: bool, behind: &mut Option<(usize, u
         if writes {
             copies.push(out.len());
         }
-        out.push((i, level));
+        out.push(Planned {
+            index: i,
+            level,
+            redirect: redirects[i],
+        });
     }
     Ok(out)
 }
@@ -449,7 +534,8 @@ fn does_of(written: &[(usize, usize)], runs: &[&HostList]) -> (Vec<Does>, Vec<(u
                     to: *at + *len,
                 },
                 Step::RawCopy { .. } => Does::Run,
-                Step::Placed(p) => Does::Placed { dst: p.dst, src: p.src, len: p.len },
+                Step::Placed(p) => Does::Placed { dst: p.dst, src: p.src, len: p.len, from_cpu: p.reads_upload() },
+                &Step::GpuWrite(_, address, len) if len > 0 => Does::GpuWrite { from: address, to: address + len },
                 Step::GpuWrite(..) | Step::Host(..) => continue,
             });
             steps.push((std::ptr::from_ref::<HostList>(list) as usize, i));
@@ -711,7 +797,7 @@ impl Host {
         let mut held: HashMap<(usize, usize), Arc<Shadow>> = HashMap::default();
         let mut room = HashMap::default();
         let mut end = 0u64;
-        for &(i, level) in &chosen {
+        for &Planned { index: i, level, redirect } in &chosen {
             let Some(((src, _), (dst, _))) = reads_writes(&does[i]) else {
                 continue;
             };
@@ -721,22 +807,23 @@ impl Host {
             if len == 0 {
                 return Err("nothing to read");
             }
-            let from = match held.get(&(src, len)) {
+            let read_src = redirect.unwrap_or(src);
+            let from = match held.get(&(read_src, len)) {
                 Some(from) => from.clone(),
                 None => {
-                    let from = holder(&writers, src, src + len)?;
-                    held.insert((src, len), from.clone());
+                    let from = holder(&writers, read_src, read_src + len)?;
+                    held.insert((read_src, len), from.clone());
                     from
                 }
             };
-            let place = (Arc::as_ptr(&from) as usize, src, len, level);
+            let place = (Arc::as_ptr(&from) as usize, read_src, len, level);
             let at = match places.get(&place) {
                 Some(&at) => at,
                 None => {
                     if end + len as u64 > BETWEEN {
                         return Err("too much at once");
                     }
-                    if !mapped(src, src + len, &mut room) {
+                    if !mapped(read_src, read_src + len, &mut room) {
                         return Err("not all of what it reads is mapped");
                     }
                     let at = end;
@@ -772,7 +859,7 @@ impl Host {
                 },
             };
             ops.push(Op {
-                from: (from, src),
+                from: (from, read_src),
                 len,
                 at,
                 level,
@@ -856,7 +943,7 @@ impl Host {
         spent.end();
         Ok(Some(Taken {
             own,
-            steps: chosen.iter().map(|&(i, _)| steps[i]).collect(),
+            steps: chosen.iter().map(|&Planned { index, .. }| steps[index]).collect(),
             copied,
         }))
     }
@@ -965,7 +1052,7 @@ mod tests {
 
     /// What is done on the card, as (place, level), in stage 2.
     fn planned(does: &[Does]) -> Vec<(usize, u32)> {
-        plan(does, 2, true, &mut None).unwrap()
+        plan(does, 2, true, &mut None).unwrap().into_iter().map(|p| (p.index, p.level)).collect()
     }
 
     /// Only what is asked for is taken, all of it, and a step that stands
@@ -983,7 +1070,13 @@ mod tests {
         ];
         assert_eq!(planned(&does), [(1, 0), (3, 0)]);
         // Two fills of the same bytes.
-        assert_eq!(plan(&[fill(0, 64, true), fill(32, 64, true)], 1, true, &mut None), Ok(vec![(0, 0), (1, 0)]));
+        assert_eq!(
+            plan(&[fill(0, 64, true), fill(32, 64, true)], 1, true, &mut None),
+            Ok(vec![
+                Planned { index: 0, level: 0, redirect: None },
+                Planned { index: 1, level: 0, redirect: None },
+            ])
+        );
         assert_eq!(plan(&[fill(0, 64, false)], 1, true, &mut None), Ok(vec![]));
         // Ends that touch are apart.
         let does = [
@@ -1030,10 +1123,13 @@ mod tests {
     }
 
     /// A copy at its place in a list is in the way of what reads or writes its
-    /// bytes behind it, not of what did ahead of it.
+    /// bytes behind it, not of what did ahead of it — except a taken fill
+    /// wholly inside a card-sourced placed copy's destination, which redirects
+    /// to the placed copy's source host copy when unchained.
     #[test]
     fn copies_at_their_place_stand_in_the_way_of_what_is_behind_them() {
-        let placed = Does::Placed { dst: 2000, src: 3000, len: 64 };
+        let placed = Does::Placed { dst: 2000, src: 3000, len: 64, from_cpu: false };
+        let placed_cpu = Does::Placed { dst: 2000, src: 3000, len: 64, from_cpu: true };
         let behind = |does: &[Does]| {
             let mut found = None;
             let refused = plan(does, 2, true, &mut found);
@@ -1042,14 +1138,141 @@ mod tests {
             found
         };
         assert_eq!(behind(&[fill(2032, 64, true), placed]), None);
+        // Partial overlap with placed copy's destination: still refused.
         assert_eq!(behind(&[placed, fill(2032, 64, true)]), Some((0, 1)));
         assert_eq!(behind(&[placed, fill(5000, 64, true)]), None);
-        assert_eq!(behind(&[fill(2000, 8, true), placed, fill(2000, 8, true)]), Some((1, 2)));
+        // Wholly inside a card-sourced placed copy's destination: redirected to `src + offset`.
+        assert_eq!(
+            plan(&[fill(2000, 8, true), placed, fill(2016, 16, true)], 2, true, &mut None),
+            Ok(vec![
+                Planned { index: 0, level: 0, redirect: None },
+                Planned { index: 2, level: 0, redirect: Some(3016) },
+            ])
+        );
+        // Without `by_order`, even a wholly-contained fill is still refused.
+        assert_eq!(plan(&[placed, fill(2016, 16, true)], 2, false, &mut None), Err(BEHIND_PLACED));
+        // CPU-sourced placed copy: refused (no source host copy on the card).
+        assert_eq!(behind(&[placed_cpu, fill(2000, 8, true)]), Some((0, 1)));
+        // Chained placed copy (earlier placed or copy writes `placed.src`): refused.
+        let chain_placed = Does::Placed { dst: 3000, src: 4000, len: 64, from_cpu: false };
+        assert_eq!(behind(&[chain_placed, placed, fill(2000, 8, true)]), Some((1, 2)));
+        assert_eq!(behind(&[copy(3000, 5000, 8, false), placed, fill(2000, 8, true)]), Some((1, 2)));
+        assert_eq!(behind(&[placed, fill(2000, 8, true), copy(3000, 5000, 8, false)]), Some((0, 1)));
+        // Two placed copies to the same dst: fill wholly inside the newer one redirects to the newer source.
+        let placed2 = Does::Placed { dst: 2000, src: 4000, len: 64, from_cpu: false };
+        assert_eq!(
+            plan(&[placed, placed2, fill(2008, 16, true)], 2, true, &mut None),
+            Ok(vec![Planned { index: 2, level: 0, redirect: Some(4008) }])
+        );
+        // Newer placed copy only partially covers the fill (split across two placed copies): refused.
+        let placed_half = Does::Placed { dst: 2000, src: 4000, len: 32, from_cpu: false };
+        assert_eq!(behind(&[placed, placed_half, fill(2000, 64, true)]), Some((0, 2)));
+        // Shader write ahead of `placed` touching `placed.src`: refused (cannot read pre-dispatch bytes in front list).
+        assert_eq!(behind(&[Does::GpuWrite { from: 3000, to: 3016 }, placed, fill(2000, 16, true)]), Some((1, 2)));
+        // Shader write *after* `placed` touching `placed.src`: safe to redirect (front list runs before it).
+        assert_eq!(
+            plan(&[placed, Does::GpuWrite { from: 3000, to: 3016 }, fill(2000, 16, true)], 2, true, &mut None),
+            Ok(vec![Planned { index: 2, level: 0, redirect: Some(3000) }])
+        );
+        // Shader write between `placed` and `fill` touching `fill`'s range: refused.
+        assert_eq!(behind(&[placed, Does::GpuWrite { from: 2008, to: 2024 }, fill(2000, 16, true)]), Some((0, 2)));
         // One that writes what it copies from, and one that writes over it.
         assert_eq!(behind(&[copy(3000, 5000, 8, true), placed]), None);
         assert_eq!(behind(&[placed, copy(3000, 5000, 8, true)]), Some((0, 1)));
         assert_eq!(behind(&[copy(2060, 5000, 8, true), placed]), None);
         assert_eq!(behind(&[placed, copy(2060, 5000, 8, true)]), Some((0, 1)));
+    }
+
+    /// Randomized equivalence check with `Does::Placed` and `Does::GpuWrite`:
+    /// redirected fills read the exact bytes sequential execution produces.
+    #[test]
+    fn placed_redirects_match_sequential_order() {
+        let mut seed = 98765u32;
+        let mut random = move |n: u32| {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            (seed >> 16) % n
+        };
+        let (mut redirected_cases, mut refused) = (0, 0);
+        for case in 0..8000u32 {
+            let does: Vec<Does> = (0..2 + random(7))
+                .map(|_| {
+                    let (a, b, len) = (random(40) as usize, random(40) as usize, 1 + random(8) as usize);
+                    match random(7) {
+                        0..2 => Does::Placed { dst: a, src: b, len, from_cpu: random(5) == 0 },
+                        2..4 => fill(a, len, random(2) == 0),
+                        4 => copy(a, b, len, random(3) == 0),
+                        5 => Does::GpuWrite { from: a, to: a + len },
+                        _ => Does::Read { from: a, to: a + len, asked: false },
+                    }
+                })
+                .collect();
+            let Ok(chosen) = plan(&does, 2, true, &mut None) else {
+                refused += 1;
+                continue;
+            };
+            if chosen.iter().any(|p| p.redirect.is_some()) {
+                redirected_cases += 1;
+            }
+            let start: Vec<u32> = (0..64).collect();
+            // Sequential execution: what each step reads (with shaders writing unique words).
+            let mut seq = start.clone();
+            let mut wanted: Vec<Option<Vec<u32>>> = Vec::new();
+            for (step_idx, d) in does.iter().enumerate() {
+                match *d {
+                    Does::Copy { dst, src, len, .. } => {
+                        wanted.push(Some(seq[src..src + len].to_vec()));
+                        seq.copy_within(src..src + len, dst);
+                    }
+                    Does::Placed { dst, src, len, .. } => {
+                        wanted.push(None);
+                        seq.copy_within(src..src + len, dst);
+                    }
+                    Does::GpuWrite { from, to } => {
+                        wanted.push(None);
+                        for (off, slot) in seq[from..to].iter_mut().enumerate() {
+                            *slot = 0x1000_0000 ^ (case << 12) ^ ((step_idx as u32) << 6) ^ off as u32;
+                        }
+                    }
+                    Does::Fill { src, len, .. } => wanted.push(Some(seq[src..src + len].to_vec())),
+                    Does::Read { from, to, .. } => wanted.push(Some(seq[from..to].to_vec())),
+                    _ => wanted.push(None),
+                }
+            }
+            // Host execution: untaken CPU copies first, then front list (card steps
+            // level by level with redirects), then placed copies and shaders at their places.
+            let mut mem = start.clone();
+            let is_taken = |i: usize| chosen.iter().any(|p| p.index == i);
+            for (i, d) in does.iter().enumerate() {
+                if !is_taken(i)
+                    && let Does::Copy { dst, src, len, .. } = *d
+                {
+                    mem.copy_within(src..src + len, dst);
+                }
+            }
+            // Verify every redirected fill reads exact sequential bytes (even in
+            // the presence of arbitrary `GpuWrite`s), and every taken step does
+            // when the sequence has no `GpuWrite`s.
+            let has_gpu_write = does.iter().any(|d| matches!(d, Does::GpuWrite { .. }));
+            for level in 0..=chosen.iter().map(|p| p.level).max().unwrap_or(0) {
+                let before = mem.clone();
+                for &Planned { index, redirect, .. } in chosen.iter().filter(|p| p.level == level) {
+                    let ((src, end), (dst, _)) = reads_writes(&does[index]).unwrap();
+                    let read_src = redirect.unwrap_or(src);
+                    let len = end - src;
+                    if redirect.is_some() || !has_gpu_write {
+                        assert_eq!(
+                            before[read_src..read_src + len],
+                            wanted[index].as_deref().unwrap()[..],
+                            "step {index} of {does:?}: {chosen:?}"
+                        );
+                    }
+                    if matches!(does[index], Does::Copy { .. }) {
+                        mem[dst..dst + len].copy_from_slice(&before[read_src..read_src + len]);
+                    }
+                }
+            }
+        }
+        assert!(redirected_cases > 50 && refused > 50, "{redirected_cases} {refused}");
     }
 
     /// Whatever the steps, done level by level (in a level every read
@@ -1097,7 +1320,7 @@ mod tests {
             }
             // The CPU's, then the card's.
             let mut cpu = start.clone();
-            let taken = |i: usize| chosen.iter().any(|c| c.0 == i);
+            let taken = |i: usize| chosen.iter().any(|c| c.index == i);
             for (i, d) in does.iter().enumerate().filter(|&(i, _)| !taken(i)) {
                 let (from, to) = match *d {
                     Does::Read { from, to, .. } => (from, to),
@@ -1109,8 +1332,8 @@ mod tests {
                 }
             }
             let mut card = cpu.clone();
-            for level in 0..=chosen.iter().map(|c| c.1).max().unwrap_or(0) {
-                let of: Vec<usize> = chosen.iter().filter(|c| c.1 == level).map(|c| c.0).collect();
+            for level in 0..=chosen.iter().map(|c| c.level).max().unwrap_or(0) {
+                let of: Vec<usize> = chosen.iter().filter(|c| c.level == level).map(|c| c.index).collect();
                 let before = card.clone();
                 for i in of {
                     let ((from, to), (dst, _)) = reads_writes(&does[i]).unwrap();
