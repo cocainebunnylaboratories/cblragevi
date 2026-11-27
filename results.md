@@ -8,27 +8,27 @@ The run was played manually on a DualSense controller using DSX's Xbox One contr
 
 | Time | Playthrough milestone |
 | --- | --- |
-| 02:10–02:13 | Initial launch shortly after 02:10, main process at 02:11:07, then first control of Lucia in prison around 02:13. |
-| 02:18–02:24 | Lucia’s chase, return to the counselor, dye-pack sequence, then the transition to Jason and Chapter 1. |
-| 02:27–02:44 | Gone Fishing, Donny’s rescue fight around 02:38, flight from about 02:42 and landing around 02:44. |
-| 02:44–03:00 | Brian’s cutscene, the drive with Cal and his drop-off around 02:50, then arrival at Jason’s house around 02:54. Control resumed around 03:00 at the Jason slot 2 stage. |
-| 03:00–03:12 | Open-world driving and on-foot play, including the toll-booth crashes and NPC confrontation around 03:05–03:09, followed by a return to Jason’s front yard. |
+| 02:10–02:13 | Initial launch shortly after 02:10, main process at 02:11:07, then first player control in the prison around 02:13. |
+| 02:18–02:24 | Prison chase, return to the counselor, dye-pack sequence, then the switch to the second playable character and the start of Chapter 1. |
+| 02:27–02:44 | First boat mission, the rescue fight around 02:38, flight from about 02:42 and landing around 02:44. |
+| 02:44–03:00 | Cutscene and a drive to drop off a passenger around 02:50, then arrival at the residence around 02:54. Control resumed around 03:00 at the open-world slot 2 stage. |
+| 03:00–03:12 | Open-world driving and on-foot play, including the toll-booth crashes and NPC confrontation around 03:05–03:09, followed by a return to the front yard. |
 | 03:12–03:24 | Front-yard idle check, manual save reported by the player, and close via the window’s X. The title suspended cleanly and exited with code 0. |
 
 | Segment | Median FPS |
 | --- | ---: |
 | First control through return to the front yard, including cutscenes | **14.5** |
-| Lucia’s chase | 13.0 |
-| Gone Fishing, first stretch | 17.0 |
+| Prison chase | 13.0 |
+| First stretch of the boat mission | 17.0 |
 | Plane flight | 16.9 |
-| Night drive from Cal’s to Jason’s house | 10.3 |
-| Jason free roam | 13.8 |
+| Night drive to the residence | 10.3 |
+| Open-world free roam | 13.8 |
 | Toll-booth encounter | 13.0 |
 | Front-yard idle, 03:13–03:22 | 15.8 |
 
 These are medians of roughly five-second reports ending within the specified scene windows, using only reports wholly inside each window. In the 59 minutes from first control to the return to the front yard, 59 of 678 reports reached at least 20 FPS. The slowest reports in the chase and toll-booth windows were 3.9 and 3.7 FPS. The night drive was slower and had more draws per frame than the daytime boat and flight windows. All five timeline captures completed with zero lost events.
 
-The log confirms that #206 selected the matching depth view and recorded the diffuse ambient lighting pass. Crucial scene-dependent artifacts remained. Pink tint was visible on Lucia’s hair through the police-car window around 02:23 and occasionally on foliage when moving during a scene load. It was less evident than the earlier Jason slot 2 observations. Low-light shadows could still be very dark. Screenshots show hard-edged dark rectangles on water during Gone Fishing and the flight sequence. Models, buildings and dry terrain generally looked intact. Some low-detail models at the start of Chapter 1 resolved after a few seconds.
+The log confirms that #206 selected the matching depth view and recorded the diffuse ambient lighting pass. Crucial scene-dependent artifacts remained. Pink tint was visible on the opening character’s hair through the police-car window around 02:23 and occasionally on foliage when moving during a scene load. It was less evident than the earlier open-world slot 2 observations. Low-light shadows could still be very dark. Screenshots show hard-edged dark rectangles on water during the first boat mission and the flight sequence. Models, buildings and dry terrain generally looked intact. Some low-detail models at the start of Chapter 1 resolved after a few seconds.
 
 ## Combined build · Xbox Series X at 1440p · 28 November 2026
 
@@ -48,7 +48,7 @@ The comparison uses complete reports between 15 and 1,110 seconds after the firs
 
 Both completed runs used the **Xbox Series S profile at verified 1080p (1920×1080 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. They ran the combined build from `vice-tay-5080-tuning` at `0c6b941c`, with the `5080` preset and frame generation off. That build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local tuning changes. Both runs recorded the corrected diffuse ambient lighting pass, completed their 75- and 95-second captures with zero lost events, and exited with code 0. The two abandoned attempts were excluded. [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
-| Measurement | Prison V1 | Jason slot 2 |
+| Measurement | Prison V1 | Open-world slot 2 |
 | --- | ---: | ---: |
 | Process uptime | 29:29 | 2:42 |
 | Median FPS at 1,000 or more draws/frame | **17.25** | **16.9** |
@@ -60,7 +60,7 @@ The FPS figures use complete reports of roughly five seconds starting at least 1
 
 The player reported that magenta tint was less evident on Series S. Little tint was visible in the recent Series X checks either. Earlier Prison V1 observations still describe intermittent tint in particular scenes.
 
-## Jason slot 2 · 28 November 2026
+## Open-world slot 2 · 28 November 2026
 
 The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440p (2560×1440 game output), and the larger Windows page file. The two candidate builds each applied one patch to that pin.
 
@@ -69,7 +69,7 @@ The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440
 | Local one-pass refresh planner | Planning spans fell from 1.83 to 0.48 ms/frame at 75 seconds and from 0.73 to 0.40 ms/frame at 95 seconds. In the 8,000–8,999 draw band with zero pipelines pending, median FPS was 14.4 on the reference and 14.3 on the candidate. |
 | Vice-Tay PR #285, by Petr Seifert | From 75 to 150 seconds, log records attributing fill waits to placed copies fell from 70 to zero. In the 6,000–8,999 draw band with zero pipelines pending, median frame time went from 68.0 to 63.9 ms (14.7 to 15.65 FPS) across 10 and 8 reports. The candidate drew less in that band. |
 
-Both candidates exited cleanly. The one-pass planner removes measured CPU work, and #285 reduced the targeted waits on this route. The Series X endurance run is recorded above. The completed [Series S 1080p checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) are recorded above. [Run IDs, settings and source revisions](docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november) · [Petr Seifert’s upstream patch](https://github.com/TaynanGT/Vice-Tay/pull/285)
+Both candidates exited cleanly. The one-pass planner removes measured CPU work, and #285 reduced the targeted waits on this route. The Series X endurance run is recorded above. The completed [Series S 1080p checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) are recorded above. [Run IDs, settings and source revisions](docs/cbl/vice-tay-1440p-tuning.md#open-world-slot-2-candidates-28-november) · [Petr Seifert’s upstream patch](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
 ## Series X at 1440p · 27 November 2026
 
@@ -91,7 +91,7 @@ Each gameplay report spans roughly five seconds. The candidate was reported to f
 
 ### Visual status
 
-Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on Jason slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The Prison V1 section records the artifacts seen during the longer run. The [Series S checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) showed less visible tint. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks) · [Visual run logs and provenance](docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on open-world slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The Prison V1 section records the artifacts seen during the longer run. The [Series S checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) showed less visible tint. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks) · [Visual run logs and provenance](docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
 ### Tuning decisions
 
