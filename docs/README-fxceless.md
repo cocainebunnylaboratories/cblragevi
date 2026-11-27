@@ -1,3 +1,5 @@
+> **CBL playtest update · 27 November 2026.** With Vice-Tay’s renderer, we no longer see the blocky surfaces or unusually white water reflections reported in earlier runs. Shadows can still look almost black at times, and some models occasionally show a magenta tint. The upstream README below records its original test results. [Current visual status](../results.md#visual-status)
+
 > This is the README of fxceless/victory-fork as this fork had it, kept for its
 > description of upstream, the commands and the debugging switches. What it says of
 > speed and state is of that fork and another PC; this fork: [README](../README.md).
@@ -367,4 +369,3 @@ title's data folder.
 ## License
 
 GPL-3.0-or-later. See [LICENSE](../LICENSE).
-

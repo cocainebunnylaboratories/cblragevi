@@ -1,193 +1,84 @@
-# Vice-Tay
+# CBL VIctory · RTX 5080 tuning
 
-**Xbox Series compatibility on Windows, tuned on a GeForce RTX 4090.**
+CBL VIctory is a Windows compatibility layer for Xbox Series titles. The `vice-tay-5080-tuning` branch tunes Vice-Tay's Direct3D 12 renderer on an RTX 5080 and Ryzen 9 9950X3D. The `5080-tuning` branch records the earlier 4K experiments. Use your own game files outside the checkout. The repository contains the compatibility layer and its tools. [Architecture](docs/architecture.md) · [Asset policy](docs/asset-policy.md)
 
-Vice-Tay builds on [VIctory](https://github.com/Marvisak/VIctory) to run an Xbox Series title from your own files. The title's x86-64 code runs on the host CPU. The compatibility layer provides the console APIs it calls and translates its graphics work to Direct3D 12.
+## Current results
 
-[Quick start](#getting-started) · [Gameplay](#gameplay) · [Measurements](#measurements) · [Benchmark dashboard](https://taynangt.github.io/Vice-Tay/)
+**Series X at 2560×1440 game output reached roughly 12–15 FPS in the earlier gameplay samples.** In the later Jason slot 2 replay, Petr Seifert’s placed-copy patch moved the median from **68.0 to 63.9 ms/frame** in the 6,000–8,999 draw band. The replay logged zero waits of the specific kind the patch targets, down from 70 records in the warmed reference. Scene workload differed, so the sustained FPS gain still needs confirmation. [Results and measurement conditions](results.md) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
-## Measurements
+The longest recorded session is **72 min 53 s** at verified **Series X 2560×1440 output**. The manual Prison V1 playthrough went from Lucia in prison through Chapter 1 and Jason free roam, followed by an idle check, a manual save and a clean exit. The median of the gameplay and cutscene reports before idle was **14.5 FPS**. The default branch builds the endurance reference source at `2fb36ee1`, including Petr Seifert’s #285 and Taynan Piza’s #206. The `vice-tay-5080-tuning` branch layers our local optimizations onto that reference. The performance target is **25 FPS (40 ms/frame)**. [Run history and credits](results.md#prison-v1-endurance--28-november-2026)
 
-The goal is **30 rendered FPS in the open world with correct visuals**. Both sessions used the Series S profile.
+## Build and launch
 
-| Session | Result |
-| --- | --- |
-| **30-minute playtest** · `bc090416` | Median of **21.1 rendered FPS**. The run covered the prologue and boat section, then continued on foot on the island. |
-| **6-minute frame generation test** · `88e80129` | Medians of **22.4 rendered FPS** and **44.9 presented FPS** with 2× frame generation on an experimental build. |
+Build from `main` for the endurance reference. Use the explicit `-Machine 5080` replay command below for the recorded configuration. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/5080-tuning.md#open-world-performance-replay)
 
-The playtest logged a 17.0 FPS 1% low, a measure of its slowest frames, and peaked at 24.1 GB of private game memory. The frame generation sample used DLSS Quality to scale 720p to 1080p and AMD FSR 3.1.6 to generate frames between rendered frames.
-
-[Playtest measurements](docs/measurements.md#series-s-baseline) · [Frame generation settings and sample](docs/measurements.md#series-s-frame-generation)
-
-**Test PC** · RTX 4090 (24 GB), Ryzen 9 9950X3D, 48 GiB DDR5, Windows 11 Pro x64
-
-<details>
-<summary>Full test configuration</summary>
-
-| Component | Configuration |
-| --- | --- |
-| CPU and motherboard | AMD Ryzen 9 9950X3D (16 cores, 32 threads), MSI MAG X870 TOMAHAWK WIFI (MS-7E51), BIOS 1.A93 |
-| Graphics | NVIDIA GeForce RTX 4090 (24 GB GDDR6X, driver 621.40), integrated AMD Radeon Graphics |
-| Memory | 2 × 24 GiB DDR5 at 8,000 MT/s, 43.4 GiB visible to Windows, 128 GiB page file |
-| Storage | Samsung 990 PRO 4 TB and 2 TB, Samsung 970 PRO 1 TB |
-| Display | Samsung Odyssey OLED G8 (G81SF), 3840 × 2160 at 240 Hz |
-| OS | Windows 11 Pro 26H2 x64, build 26300.10075 |
-
-</details>
-
-## Gameplay
-
-Checkpoint retries worked after the boat ran aground. The HUD, minimap, mission prompts and pause menu were usable along the route.
-
-This clip shows the boat section with the diagnostics overlay. It displays frame times, draw counts, CPU and GPU load, and memory use. Press **F3** to toggle it in a diagnostics build.
-
-https://github.com/user-attachments/assets/bd07891c-c53f-4f46-9b7e-80463c379b84
-
-[Browse ten screenshots from the Series S playtest on build `672cf831`](https://github.com/TaynanGT/Vice-Tay-Screenshots#readme)
-
-## Getting started
-
-**Requirements.** Windows 10 or 11 x64, an AVX2-capable CPU, a Direct3D 12 GPU with Shader Model 6.6 and mesh shader support, Rust, and MSVC build tools with a Windows SDK. Rust uses the version pinned in [`rust-toolchain.toml`](rust-toolchain.toml).
-
-> [!IMPORTANT]
-> Bring your own copy of the title. Keep the executable, game data and derived cache outside this checkout. See the [asset policy](docs/asset-policy.md).
-
-1. Clone the repository and copy the configuration template.
-
-   ```powershell
-   git clone https://github.com/TaynanGT/Vice-Tay.git
-   Set-Location Vice-Tay
-   Copy-Item .\victory.example.toml .\victory.toml
-   ```
-
-2. Set `game_dir` in `victory.toml` to the directory containing your title files. Build the diagnostics executable and launch the Series S profile with the path to your executable.
-
-   ```powershell
-   cargo build --locked --profile diag -p victory --features diagnostics
-   .\scripts\play.ps1 -Exe 'D:\victory-data\game\game.exe' -Console series-s
-   ```
-
-Use [`Play-VIctory.cmd`](Play-VIctory.cmd) to pass the same options from Command Prompt. Double-click it to enter the executable's path at a prompt. The launcher defaults to full screen, the Series X profile and an automatic GPU preset. **F11** or **Alt+Enter** toggles full screen during play.
-
-| Option | Use it to |
-| --- | --- |
-| `-Console series-s` | Select the lighter console profile used in the sessions above. |
-| `-Machine 4090` / `-Machine 4070` / `-Machine 7900xtx` | Select a GPU preset explicitly. See the [RTX 4070 test notes](docs/rtx4070-performance.md). |
-| `-Machine laptop` | Try the [16 GB NVIDIA laptop preset](docs/laptop-16gb.md), measured on one RTX 3050 laptop. |
-| `-Safe` | Launch with the conservative settings when investigating a graphics or stability issue. |
-| `-Windowed` / `-NoPanel` | Start in a window or hide the diagnostics overlay at launch. |
-| `-RayTracing` | Enable the structures needed for the title's ray-traced indirect lighting. |
-| `-Fsr4K quality` / `-Dlss4K quality` | Upscale to 3840 × 2160 with PC FSR or DLSS on Series X. |
-| `-Build release` | Use the executable built with `cargo build --locked --release -p victory`. The overlay requires a diagnostics build. |
-
-<details>
-<summary>PC upscaling and Series S frame generation</summary>
-
-The Series X 4K profiles support `quality`, `balanced` and `performance` on
-build 1.0.2.1. They render at 2560 × 1440, 2258 × 1270 and 1920 × 1080
-respectively. For Series S, use `-Dlss` or `-Fsr` with the same three
-presets to keep the console profile's output size.
-
-For FSR, point `VICTORY_FIDELITYFX_DIR` or `[paths].fidelityfx_dir` at the
-folder containing `amd_fidelityfx_upscaler_dx12.dll`. The 4K mode prefers
-FSR 4.1.2 and uses 3.1.6 when that is what the adapter supports. Series S
-uses FSR 3.1.6. Both profiles can use FSR when DLSS fails.
-For DLSS on an RTX card, set `VICTORY_DLSS_DIR` or `[paths].dlss_dir` to
-select a folder with `nvngx_dlss.dll`. NGX uses the driver's copy by
-default. `VICTORY_DLSS_NO_UPDATE=1` uses the installed selection without
-an NGX update. [AMD FSR SDK](https://gpuopen.com/amd-fsr-sdk/) ·
-[NVIDIA DLSS SDK](https://github.com/NVIDIA/DLSS)
-
-For 2× Series S frame generation, pass `-FrameGen`. Point
-`VICTORY_FFX_FG_DIR` or `[paths].ffx_fg_dir` at the SDK 2.4.0
-`Kits/FidelityFX/signedbin` folder with `amd_fidelityfx_loader_dx12.dll`
-and `amd_fidelityfx_framegeneration_dx12.dll`. If neither is set, the FSR
-upscaler folder is used. This uses AMD's analytical
-3.1.6 frame generation provider. The launch below uses DLSS on an RTX card.
+Use Windows 11, a Direct3D 12 GPU with shader model 6.6 and mesh shader support, the MSVC build tools and Windows SDK, and the repository's pinned Rust toolchain. Create `victory.toml` from the example if you need a new configuration, then set `game_dir` to your own dump. Use a regular PowerShell session from the repository root. [Configuration example](victory.example.toml) · [Vice-Tay build and Windows 10 Agility SDK notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md#getting-started)
 
 ```powershell
-$env:VICTORY_FFX_FG_DIR = '<SDK signedbin>'
-.\scripts\play.ps1 -Exe 'D:\victory-data\game\game.exe' -Console series-s -Dlss quality -FrameGen
+cargo build --locked --profile diag -p victory --features diagnostics
+.\scripts\play-series-x-1440p.ps1
 ```
 
-With neither PC upscaler selected, frame generation uses depth and motion
-vectors from the title's native FidelityFX loader. `RENDER FPS` in the
-diagnostics panel counts rendered frames, and `FG OUTPUT FPS` counts
-swap-chain presentations. The PC FSR bridge follows
-[DexNom's implementation](https://github.com/DexNom/VIctory/commit/ab34a8b21477c94da2a6cf07249138e8bc84602e)
-through beloooo's port. The frame generation bridge follows
-[PastiiJay's DirectX 12 integration](https://github.com/PastiiJay/klbf-lab/commit/793c56c36fda760b027122418b922fc359abf580).
+| Script in `scripts` | Profile | Requested game output |
+| --- | --- | --- |
+| `play-series-x-1440p.ps1` | Series X | 2560×1440 |
+| `play-series-x-4k.ps1` | Series X | 3840×2160 |
+| `play-series-s-1080p.ps1` | Series S | 1920×1080 |
+| `play-series-s-4k.ps1` | Series S | 3840×2160 |
 
-</details>
+The four scripts launch windowed and keep the game's aspect ratio on ultrawide displays. `VICTORY_WINDOW_SIZE` sets a window target fitted to the work area, and `VICTORY_WINDOW_MAX` can cap it further. `VICTORY_OUTPUT` sets the game's output size and back-buffer selection on the supported title build. Internal rendering follows the title's upscaler and profile. Verify the output patch in `boot.log` and presentation dimensions in `trace.log`. The Series S 1440p preset was replaced with 1080p after the former hit a breakpoint before its first present. Series S 1080p launched and exited cleanly. [Resolution and test notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md#rtx-5080-test-setup-and-measurement-procedure)
 
-<details>
-<summary>Shader cache and pipeline warm-up</summary>
+`play.ps1` accepts `-VictoryExe` for an isolated build, `-Exe` for a game executable, and `-More` for explicit environment overrides. The presets warm shaders and pipelines before play. The warmer skips the archive scan when its build, driver, archive and shader settings match the cache stamp. It warms previously recorded pipelines when the inputs are available. Runs record new pipeline inputs and stream logs to `target/play-logs/<run>`. The directory contains `boot.log`, `trace.log` and `run.json`, which records the executable SHA-256, settings, timestamps and exit code. F3 toggles the performance panel. [Launcher](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/play.ps1) · [Cache warmer](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/warm-cache.ps1)
 
-The launcher pretranslates shaders when the cache has fewer than 1,000 entries. It uses `game_dir` when configured and falls back to the executable's directory. The driver may still build pipelines during the first run.
+### Restore a backup save
 
-Run these steps separately from the repository root to warm the shader cache and compile pipelines seen in previous runs. Both steps can resume from cached work.
+Close VIctory first. Pass a snapshot folder name or full path under the configured backup directory. The script stages a copy, preserves any previous active saves in a dated `saves-before-restore-*` directory, and installs the copy under the configured VIctory data directory. The source backup stays intact. [Restore script and backup root](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/restore-save.ps1)
 
 ```powershell
-.\target\diag\victory.exe shaders
-.\target\diag\victory.exe warm --used
+.\scripts\restore-save.ps1 -Path 'your-snapshot-folder'
 ```
 
-Pass an archive path to `shaders` to scan just that archive. `-SkipShaders` skips pretranslation at launch.
+## Applied tuning
 
-</details>
+Use `-Machine 5080` with `play.ps1` to reproduce the measured Prison V1 settings. It inherits Vice-Tay's 4090 submission, GPU copy and shader settings, and sets four mapping threads, CPU scheduling level 2, page-fault-only DRED, frame generation off and the optional readback pool off. The convenience launchers select the vendor preset automatically.
 
-<details>
-<summary>Direct3D 12 Agility SDK on Windows 10</summary>
+| Area | Settings used in the 1440p replay |
+| --- | --- |
+| Workers | `VICTORY_FAST_CORES=2`, `VICTORY_MAP_THREADS=4`, `VICTORY_THIN_THREADS=12`, `VICTORY_UNDER_THREADS=8`, `VICTORY_LAND_THREADS=6`, `VICTORY_TITLE_PRIORITIES=0` |
+| Submission and copies | `VICTORY_RELAY=2`, `VICTORY_RELAY_COPY=1`, `VICTORY_WIDE_BACK=1`, `VICTORY_CARD_STEPS=2`, `VICTORY_CARD_REHASH_RUNS=1`, `VICTORY_PLACED_ORDER=1`, `VICTORY_JOIN_COPIES=1`, `VICTORY_JOIN_PARTS=8` |
+| Draw and upload preparation | `VICTORY_THIN=1`, `VICTORY_INDIRECT_WINDOW=1`, `VICTORY_INDIRECT_BATCH=2`, `VICTORY_UPLOAD_AHEAD=1`, `VICTORY_TEXTURE_NO_WAIT=1` |
+| Output and diagnostics | `VICTORY_OUTPUT=2560x1440` with a matching window target, `VICTORY_AMBIENT=0.8`, `VICTORY_SHOW_AFTER=1`, `VICTORY_PANEL=1`, `VICTORY_D3D12_DRED=faults`, `VICTORY_PIPELINE_BOOK=1`, `VICTORY_LOG=info` |
+| Shader compatibility | The four-pipeline NVIDIA allowlist in `VICTORY_WAVE_WIDE_ONLY` |
+| Disabled for comparison | Frame generation, texture readback pool and the experimental retirement worker. The normal water texture readback path remains enabled. |
 
-For a Windows runtime that rejects root signature flags `c00` or `c01`, use the application-local [Microsoft.Direct3D.D3D12 1.620.2 package](https://www.nuget.org/packages/Microsoft.Direct3D.D3D12/1.620.2).
+```powershell
+$timeline = "target\play-logs\series-x-1440p-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
+.\scripts\play.ps1 -Console series-x -Machine 5080 -Windowed -WindowSize 2560x1440 -WarmCache -CaptureLog -More @{
+    VICTORY_OUTPUT = '2560x1440'
+    VICTORY_WINDOW_MAX = '2560x1440'
+    VICTORY_TIMELINE = "75+95,5,$timeline"
+}
+```
 
-1. Open the `.nupkg` as a ZIP and copy `build/native/bin/x64/D3D12Core.dll` to `target\diag\D3D12\`. The optional debug layer uses `D3D12SDKLayers.dll` from the same package.
-2. Build with the Agility SDK exports enabled.
+This command runs the diagnostic build in `target/diag`. Load Prison V1 to follow the endurance route. The original run also captured five frames each at 15, 25 and 45 minutes. Use `VICTORY_TIMELINE="75+95+900+1500+2700,5,$timeline"` in the hashtable to reproduce those captures. [Build identity and route](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference)
 
-   ```powershell
-   $env:VICTORY_AGILITY_SDK = '1'
-   try { cargo build --locked --profile diag -p victory --features diagnostics }
-   finally { Remove-Item Env:VICTORY_AGILITY_SDK }
-   ```
+## Local changes and trials on `vice-tay-5080-tuning`
 
-3. Launch with `scripts\play.ps1`. Keep the `D3D12` folder beside the executable. For a release build, use `target\release\D3D12\` and build with `--release`.
-
-</details>
+- **Buffer refresh planning.** The local planner accumulates buffer ranges during the command-list walk and preserves their original order and shader-write boundaries. The measured planning spans got shorter in both captures. FPS in the tighter draw-count band was nearly flat. [Jason slot 2 results](results.md#jason-slot-2--28-november-2026)
+- **Placed-copy fill forwarding.** Petr Seifert's Vice-Tay PR #285 lets eligible GPU fills read from a placed copy's source to avoid a submission split or wait. The tuning branch imports upstream commit `9dea421b` with its original authorship. [Upstream commit](https://github.com/TaynanGT/Vice-Tay/commit/9dea421bf4469ce3511c4b15481d64dd585de25d) · [Local provenance and benchmark](docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november)
+- **Page mapping.** The planner prepares aligned groups outside the mapping lock, tracks contiguous destinations as an interval and reuses a set for scattered destinations. It preserves dependency order, actual host mapping calls, write guards and GPU notifications. All 5,000 generated planner comparisons matched, and all 19 Windows mapping tests passed. The native CPU benchmark moved from 116.7 µs to 4.7 µs for a synthetic 4,096-page contiguous request. [Code](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-hle/src/modules/xmem.rs) · [Benchmark](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md#local-candidate-on-the-pinned-build-27-november)
+- **Relay measurements.** Diagnostic builds time list readbacks, flight resource completion, descriptor release, title notifications and retirement. The optional `VICTORY_RETIRE_WORKER=1` sends completed descriptor resources to a bounded release worker after fence completion and the existing retirement lag. It releases inline when the queue is full. The trial shifted some retirement time off the relay with little change in total frame time, so the measured profile keeps it off. [Relay implementation](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-gpu/src/host.rs) · [Results](results.md)
+- **Scheduling and buffer reuse.** Scheduling level 2 remains the reference after the level 1 comparison changed direction across sample windows. Four mapping threads had the better midrange result against the inherited automatic setting. The upstream texture readback pool reused most buffers and reduced driver allocations, with similar overall frame times in the tested route. [Experiment ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md)
+- **Upstream integration.** The tuning branch shares the `a9612459` runtime base with the Prison V1 reference. It carries the earlier Vice-Tay renderer changes and adds Petr Seifert’s #285 and Taynan Piza’s #206 with their original authorship and source revisions. The local page-mapping and buffer-refresh planners are included, and the retirement worker remains opt-in. [Reference and build provenance](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference)
 
 ## Known problems
 
-- **RX 6700 XT on Windows 11 LTSC.** Drivers 32.0.21045.26001 and 32.0.32029.2010 can reset the device while loading the world. The AMD launcher profile defaults to relay mode 0 on those drivers. See [#138](https://github.com/TaynanGT/Vice-Tay/issues/138) for the reported runs. The launcher still accepts an explicit relay mode through its settings override.
-- **Frame time.** The 30-minute run recorded a median frame time of 47.3 ms, with 33.7 ms for CPU-side submission preparation and 12.6 ms for GPU read-back. [Frame breakdown](docs/measurements.md#series-s-baseline)
-- **Memory pressure.** The five-minute overlay session peaked at 27.1 GB of private game memory. Low free RAM can lead to paging and long stalls. [Memory findings](docs/findings-rtx4090.md)
-- **Rendering.** Colour banding, flat-colour surfaces, blocky clouds and reflections, and missing or incorrect shading remain visible in some scenes. Ray-traced indirect lighting requires `-RayTracing`.
-- **GPU timing.** Series S game logs report GPU time near zero. The diagnostics overlay reads GPU load from Windows when those counters are available. [Overlay details](docs/this-fork.md#playing)
+Taynan Piza’s #206 ambient lighting fix cleared broad areas of almost-black shade in the short Jason slot 2 checks. The longer Prison V1 run still showed occasional pink tint through the police-car window and on foliage during moving scene loads. Low-light shadows can remain very dark. Hard-edged rectangular artifacts appeared on water during the boat and flight sequences. Models, buildings and dry terrain generally looked good, with a short low-detail transition at the start of Chapter 1. [Endurance visuals](results.md#prison-v1-endurance--28-november-2026) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
-For banding that varies between launches, add `-More @{VICTORY_RTV_FORMAT_LOG='1'}` to the diagnostics launch. Compare the `RTV format check` totals and `RTV format mismatch` examples at the same checkpoint in both runs.
+Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. [Results](results.md)
 
-[Report a performance or rendering issue](https://github.com/TaynanGT/Vice-Tay/issues/new?template=performance-or-graphics.yml)
+## Credits and license
 
-## Development and testing
+Based on Marvisak's VIctory, fxceless's renderer work and TaynanGT's Vice-Tay, with upstream authors and port credits preserved in Git history and the archived README. GPL-3.0-or-later. [Credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/credits.md) · [Archived Vice-Tay README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md) · [Original at `0d509383`](https://github.com/TaynanGT/Vice-Tay/blob/0d509383234b73d5452b4ccb4b0aee60c8b67d14/README.md) · [Earlier 5080 project README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/README.md) · [License](LICENSE)
 
-- **Loader and runtime.** `victory-loader` maps the title executable. `victory-hle` supplies the console services it expects. [Architecture](docs/architecture.md)
-- **Graphics.** `victory-gpu` maps console command lists and resource views to host D3D12. `victory-shader` recompiles shaders, including Xbox wave64 programs on NVIDIA hardware. Vice-Tay reclaims temporary resource views when the GPU finishes using them, reducing dropped draws when the descriptor heap fills. [Changes in Vice-Tay](docs/this-fork.md)
-- **Verification.** CI runs Clippy, the workspace tests in default and diagnostics configurations, and the asset policy check. Performance changes are compared on the same route, build base and session length. [Test procedure and run logs](docs/tests.md) · [CI workflow](.github/workflows/ci.yml)
-
-See the [upstream usage notes](docs/README-fxceless.md) for additional commands and [frame replay](docs/replay.md) for capturing and replaying a frame locally.
-
-## Credits
-
-Vice-Tay grew out of codec-d's `cool_fox`, which brought NVIDIA work to avatarmanz's VIctory tree. Imported work retains its original authorship and commit references. The [full credits](docs/credits.md) list the contributors in the project's history.
-
-- [Marvisak/VIctory](https://github.com/Marvisak/VIctory) and its contributors built the loader, console runtime, Direct3D 12 backend and shader recompiler.
-- [fxceless/victory-fork](https://github.com/fxceless/victory-fork) and its contributors provided the fork history Vice-Tay builds on.
-- [avatarmanz/VIctory-7900XTX](https://github.com/avatarmanz/VIctory-7900XTX) contributed parallel command recording and translation, accelerated submissions, texture uploads on a copy queue and frame replay.
-- **codec-d/cool_fox** contributed two-plane composition, fallback heaps, descriptor table plans, residency and fence handling, NVIDIA wave32 lowering, movie uploads and XMA audio fixes.
-- [DexNom/VIctory](https://github.com/DexNom/VIctory) contributed ray tracing fixes, cube gradients and sparse textures.
-- [Belobug/VIctory-Belobug-AMD](https://github.com/Belobug/VIctory-Belobug-AMD) contributed the overlay, ambient lighting work and pipeline workers, with work by romainhedouin.
-- [FQY55kai/ZJOU-VICTORY](https://github.com/FQY55kai/ZJOU-VICTORY) and [myokex/victory-amd](https://github.com/myokex/victory-amd) are part of the project's lineage. The latter includes page-view and title-memory work by Spexivus, joroyt, tightfall and Joshua Odom.
-- **Geckomacabre** and **cxy0072019-sketch** contributed texture read-back. **meshahid973**, **nullexxx**, **cxy0072019-sketch** and **welisonzika14-jpg** contributed fixes and reviewed changes through Vice-Tay pull requests.
-- [ivall/XCL](https://github.com/ivall/xcl) (GPL-2.0-only) served as a reference for title behaviour.
-
-## License
-
-[GPL-3.0-or-later](LICENSE), inherited from VIctory. The [asset policy](docs/asset-policy.md#the-one-exception) records the separate BCPack format tables. Vice-Tay is independent of the title's developer and publisher.
+The previous README preserves the earlier renderer and water-readback credits, the 4K playtests, and inherited fxceless documentation. [Previous default-branch README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/f39c4c8d/README.md) · [First-mission rendering investigation](docs/cbl/first-mission-rendering.md)
