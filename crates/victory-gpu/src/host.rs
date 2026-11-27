@@ -8563,12 +8563,72 @@ fn refresh_front() -> bool {
     ahead_of_writes() && (joins_asked().0 > 1 || *ON.get_or_init(|| crate::switch::on("VICTORY_REFRESH_FRONT")))
 }
 
+struct FrontCopy<T> {
+    copy: T,
+    from: usize,
+    to: usize,
+    written_in: usize,
+}
+
+/// Accumulates refresh ranges in first-touch order while walking the lists.
+/// A write can be the first touch even when the first eligible refresh of
+/// that copy comes several parts later.
+struct FrontPlan<T> {
+    indices: ByCopy<usize>,
+    copies: Vec<FrontCopy<T>>,
+    last: Option<(usize, usize)>,
+    part: usize,
+}
+
+impl<T: Clone> FrontPlan<T> {
+    fn new() -> Self {
+        Self { indices: ByCopy::default(), copies: Vec::new(), last: None, part: 1 }
+    }
+
+    fn next_part(&mut self) {
+        self.part += 1;
+    }
+
+    fn entry(&mut self, key: usize, copy: &T) -> &mut FrontCopy<T> {
+        if let Some((last_key, index)) = self.last && last_key == key {
+            return &mut self.copies[index];
+        }
+        let index = *self.indices.entry(key).or_insert_with(|| {
+            let index = self.copies.len();
+            self.copies.push(FrontCopy { copy: copy.clone(), from: usize::MAX, to: 0, written_in: 0 });
+            index
+        });
+        self.last = Some((key, index));
+        &mut self.copies[index]
+    }
+
+    fn refresh(&mut self, key: usize, copy: &T, from: usize, to: usize) {
+        let part = self.part;
+        let entry = self.entry(key, copy);
+        if entry.written_in != part {
+            entry.from = entry.from.min(from);
+            entry.to = entry.to.max(to);
+        }
+    }
+
+    fn write(&mut self, key: usize, copy: &T) {
+        let part = self.part;
+        self.entry(key, copy).written_in = part;
+    }
+
+    fn into_spans(self) -> Vec<(T, usize, usize)> {
+        self.copies.into_iter().filter(|e| e.from < e.to).map(|e| (e.copy, e.from, e.to)).collect()
+    }
+}
+
+/// Two-pass reference used to verify both production planners.
 /// Per copy what is refreshed in front of a submission's steps, as
 /// [`written_spans`]'s but of all copies, up to the copy's first write by
 /// shaders in each part of the submission (`Touch::Part`: another begins).
 /// What a part refreshes of a copy it has given to its shaders stays where it
 /// stands: around what they write. What a later part refreshes is the
 /// title's bytes of before either.
+#[cfg(test)]
 fn front_spans(steps: impl Iterator<Item = Touch>) -> Vec<(usize, usize, usize)> {
     let mut at: ByCopy<usize> = ByCopy::default();
     // (Copy, from, to), in the order they come, and the part that gave it to
@@ -8615,7 +8675,7 @@ fn front_spans(steps: impl Iterator<Item = Touch>) -> Vec<(usize, usize, usize)>
 /// each list's part beside the submitting thread (renderer port #6).
 const WIDE_PLAN_STEPS: usize = 4096;
 
-/// One list's part of [`front_spans`] (renderer port #6, [`list_front`]).
+/// One list's part of the front refresh plan (renderer port #6, [`list_front`]).
 #[derive(Default)]
 struct ListFront {
     /// The copies it touches, in the order of their first touch, each with
@@ -8629,7 +8689,7 @@ struct ListFront {
     textures: Vec<std::sync::Arc<crate::texture::Staging>>,
 }
 
-/// A list's steps as [`front_spans`] takes them, folded per copy
+/// A list's front refresh steps, folded per copy
 /// ([`ListFront`]).
 fn list_front(steps: &[Step], textures: bool) -> ListFront {
     let mut shadows: Vec<(usize, std::sync::Arc<crate::shadow::Shadow>)> = Vec::new();
@@ -8686,7 +8746,7 @@ fn fold_touches(touches: impl Iterator<Item = Touch>) -> Vec<(usize, usize, usiz
     copies
 }
 
-/// [`front_spans`] of the lists whose parts are `lists` ([`fold_touches`]), a
+/// Front refresh spans of the lists whose parts are `lists` ([`fold_touches`]), a
 /// new part of the submission beginning at each of `parts`: the same spans,
 /// in the same order (`front_tests`).
 fn join_keys<'a>(lists: impl Iterator<Item = &'a [(usize, usize, usize, bool)]>, parts: &[usize]) -> Vec<(usize, usize, usize)> {
@@ -8734,7 +8794,7 @@ fn join_fronts(fronts: &[ListFront], parts: &[usize]) -> Vec<(std::sync::Arc<cra
 
 #[cfg(test)]
 mod front_tests {
-    use super::{Touch, fold_touches, front_spans, join_keys};
+    use super::{FrontPlan, Touch, fold_touches, front_spans, join_keys};
 
     /// Random submissions of lists (refreshes and shaders' writes of a few
     /// copies, new parts now and then): each list folded on its own and the
@@ -8752,11 +8812,13 @@ mod front_tests {
             let copies = 1 + next(6);
             let mut parts = Vec::new();
             let mut whole: Vec<Touch> = Vec::new();
+            let mut streamed = FrontPlan::new();
             let mut folds = Vec::new();
             for n in 0..lists {
                 if n > 0 && next(4) == 0 {
                     parts.push(n);
                     whole.push(Touch::Part);
+                    streamed.next_part();
                 }
                 let mut mine: Vec<Touch> = Vec::new();
                 for _ in 0..next(12) {
@@ -8764,16 +8826,19 @@ mod front_tests {
                     if next(5) == 0 {
                         mine.push(Touch::Write(key));
                         whole.push(Touch::Write(key));
+                        streamed.write(key, &key);
                     } else {
                         let from = next(100);
                         let to = from + 1 + next(50);
                         mine.push(Touch::Refresh(key, from, to));
                         whole.push(Touch::Refresh(key, from, to));
+                        streamed.refresh(key, &key, from, to);
                     }
                 }
                 folds.push(fold_touches(mine.into_iter()));
             }
             let want = front_spans(whole.into_iter());
+            assert_eq!(streamed.into_spans(), want, "parts {parts:?}");
             let got = join_keys(folds.iter().map(|f| f.as_slice()), &parts);
             assert_eq!(got, want, "parts {parts:?}");
         }
@@ -8791,6 +8856,7 @@ enum Touch {
     Title,
     Nothing,
     /// Another part of the submission begins.
+    #[cfg_attr(not(test), allow(dead_code))]
     Part,
 }
 
@@ -9005,8 +9071,8 @@ impl Batch {
         // joined here in order (`list_front`, `join_fronts`): one submission
         // a frame has most of the frame's steps, 3-6 ms of this alone (run
         // guard-4).
-        let steps: usize = runs.iter().map(|list| list.deferred().copies.len()).sum();
-        if crate::watch::port_guard_plan() && runs.len() >= 2 && steps >= WIDE_PLAN_STEPS {
+        if crate::watch::port_guard_plan() && runs.len() >= 2
+            && runs.iter().map(|list| list.deferred().copies.len()).sum::<usize>() >= WIDE_PLAN_STEPS {
             #[derive(Clone, Copy)]
             struct Lists(*const *const HostList, usize);
             // SAFETY: the lists outlive the call, which waits for every job.
@@ -9040,24 +9106,19 @@ impl Batch {
             self.refresh_spans(spans, due, planning);
             return;
         }
-        let mut copies: ByCopy<std::sync::Arc<crate::shadow::Shadow>> = ByCopy::default();
-        let mut touches = Vec::new();
+        let mut plan = FrontPlan::new();
         for (n, list) in runs.iter().enumerate() {
             if parts.contains(&n) {
-                touches.push(Touch::Part);
+                plan.next_part();
             }
-            let mut last = 0;
             for step in &list.deferred().copies {
                 match step {
                     Step::Refresh(shadow, at, len) => {
-                        let key = std::sync::Arc::as_ptr(shadow) as usize;
-                        if key != last {
-                            copies.entry(key).or_insert_with(|| shadow.clone());
-                            last = key;
-                        }
-                        touches.push(Touch::Refresh(key, *at, *at + *len));
+                        plan.refresh(std::sync::Arc::as_ptr(shadow) as usize, shadow, *at, *at + *len);
                     }
-                    Step::GpuWrite(shadow, ..) => touches.push(Touch::Write(std::sync::Arc::as_ptr(shadow) as usize)),
+                    Step::GpuWrite(shadow, ..) => {
+                        plan.write(std::sync::Arc::as_ptr(shadow) as usize, shadow);
+                    }
                     Step::Texture(staging) if wide_textures() => {
                         if self.texture_due(staging) {
                             due.push(staging.clone());
@@ -9068,11 +9129,7 @@ impl Batch {
             }
         }
         planning.next("refreshes in front: the spans");
-        let spans: Vec<_> = front_spans(touches.into_iter())
-            .into_iter()
-            .filter_map(|(key, from, to)| Some((copies.remove(&key)?, from, to)))
-            .collect();
-        self.refresh_spans(spans, due, planning);
+        self.refresh_spans(plan.into_spans(), due, planning);
     }
 
     /// The rest of [`Batch::refresh_front`]: `spans` brought up to date in
