@@ -44,6 +44,7 @@ impl SigElement {
             18 => 68,
             19 => 67,
             20 => 69,
+            28 => 23, // barycentrics
             30 => 25, // cull primitive
             _ => 0,
         }
@@ -63,6 +64,31 @@ impl SigElement {
     }
 }
 
+/// Gives the elements of a row whose interpolation mode nothing decided
+/// (float elements, unless `read` and read) the mode the row's other
+/// elements agree on: DXIL wants one mode per row, and the console's
+/// signature, packed by the source's modes, had one (an int or a system
+/// value beside a float means the float was `nointerpolation`).
+/// (After VIctory 13091f6e.)
+pub(crate) fn same_mode_per_row(elements: &mut [SigElement], read: bool) {
+    let free = |e: &SigElement| e.kind == 0 && e.comp == 9 && !(read && e.usage != 0);
+    let mut rows: Vec<u32> = elements.iter().filter_map(|e| e.row).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    for row in rows {
+        let decided = |e: &&SigElement| e.row == Some(row) && !free(e) && e.interp != 0;
+        let mut modes = elements.iter().filter(decided).map(|e| e.interp);
+        let Some(mode) = modes.next() else { continue };
+        if modes.any(|m| m != mode) {
+            continue;
+        }
+        let undecided = |e: &&mut SigElement| e.row == Some(row) && free(e);
+        for e in elements.iter_mut().filter(undecided) {
+            e.interp = mode;
+        }
+    }
+}
+
 /// `ISG1`/`OSG1`: 32-byte rows, then the names.
 pub(crate) fn signature(elements: &[SigElement], input: bool) -> Vec<u8> {
     let mut out = Vec::new();
@@ -71,7 +97,7 @@ pub(crate) fn signature(elements: &[SigElement], input: bool) -> Vec<u8> {
     // Validator 1.6 writes one name per element in element order, repeats
     // included, except that system values share theirs (it keys names by
     // the semantic's string, which is one static string per system value);
-    // the rows sorted by register (unallocated last).
+    // the rows sorted by register (unallocated last), then name offset.
     let mut offsets: Vec<u32> = Vec::new();
     let mut next = 8 + 32 * elements.len() as u32;
     let mut names = Vec::new();
@@ -89,7 +115,7 @@ pub(crate) fn signature(elements: &[SigElement], input: bool) -> Vec<u8> {
         }
     }
     let mut order: Vec<usize> = (0..elements.len()).collect();
-    order.sort_by_key(|&i| (elements[i].row.unwrap_or(u32::MAX), elements[i].col));
+    order.sort_by_key(|&i| (elements[i].row.unwrap_or(u32::MAX), offsets[i]));
     for i in order {
         let (e, offset) = (&elements[i], offsets[i]);
         let used = e.usage << e.col;
@@ -114,10 +140,27 @@ pub(crate) fn signature(elements: &[SigElement], input: bool) -> Vec<u8> {
     out
 }
 
+/// The most a mesh shader's outputs may take, in bytes (D3D12).
+pub(crate) const MESH_OUTPUT_LIMIT: u64 = 32 * 1024;
+
+/// A mesh shader's output size as the DXIL validator measures it against
+/// [`MESH_OUTPUT_LIMIT`]: 4 bytes per component of every vertex element
+/// and primitive element, times the maxima rounded up to multiples of 32.
+pub(crate) fn mesh_output_bytes(
+    vertex: &[SigElement],
+    primitive: &[SigElement],
+    max_vertices: u32,
+    max_primitives: u32,
+) -> u64 {
+    let scalars = |els: &[SigElement]| els.iter().map(|e| u64::from(e.cols)).sum::<u64>();
+    let align = |n: u32| u64::from(n).next_multiple_of(32);
+    4 * (scalars(vertex) * align(max_vertices) + scalars(primitive) * align(max_primitives))
+}
+
 /// A resource bound by register, as `PSV0` lists it.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Binding {
-    /// PSV resource type: 1 sampler, 2 CBV.
+    /// PSV resource type: 1 sampler, 2 CBV, 4 raw SRV, 7 raw UAV.
     pub kind: u32,
     pub space: u32,
     pub register: u32,
@@ -126,7 +169,7 @@ pub(crate) struct Binding {
 }
 
 pub(crate) struct Psv<'a> {
-    /// PSV shader kind: 0 pixel, 1 vertex, 5 compute.
+    /// PSV shader kind: 0 pixel, 1 vertex, 2 geometry, 5 compute.
     pub stage: u8,
     /// Vertex: writes `SV_Position`. Pixel: writes depth.
     pub flag: bool,
@@ -136,6 +179,9 @@ pub(crate) struct Psv<'a> {
     pub prims: &'a [SigElement],
     /// Mesh: its state and the group-shared bytes it declares.
     pub mesh: Option<(super::shader::Mesh, u32)>,
+    /// Geometry (triangles in, triangle strips out on stream 0): its
+    /// maximum vertex count. `flag`: writes `SV_Position`.
+    pub geometry: Option<u32>,
     pub bindings: &'a [Binding],
     /// Compute: thread-group size and required wave size.
     pub threads: [u32; 3],
@@ -188,6 +234,15 @@ pub(crate) fn psv(p: &Psv) -> Vec<u8> {
         info[26] = vectors(p.prims) as u8;
         info[27] = mesh.topology;
         info[30] = p.prims.len() as u8;
+    }
+    if let Some(max_vertices) = p.geometry {
+        // Input primitive (3: triangles), output topology (5: triangle
+        // strips), stream mask, position written; the vertex maximum.
+        info[0..4].copy_from_slice(&3u32.to_le_bytes());
+        info[4..8].copy_from_slice(&5u32.to_le_bytes());
+        info[8..12].copy_from_slice(&1u32.to_le_bytes());
+        info[12] = u8::from(p.flag);
+        info[26..28].copy_from_slice(&(max_vertices as u16).to_le_bytes());
     }
     out.extend(info);
     u32s(&mut out, &[p.bindings.len() as u32]);
@@ -339,21 +394,40 @@ pub(crate) fn hash(data: &[u8]) -> [u8; 16] {
 
 fn md5_block(state: &mut [u32; 4], block: &[u8; 64]) {
     const S: [u32; 16] = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
-    let x: Vec<u32> = block
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .map(|c| u32::from_le_bytes(*c))
-        .collect();
+    const K: [u32; 64] = [
+        0xd76a_a478, 0xe8c7_b756, 0x2420_70db, 0xc1bd_ceee,
+        0xf57c_0faf, 0x4787_c62a, 0xa830_4613, 0xfd46_9501,
+        0x6980_98d8, 0x8b44_f7af, 0xffff_5bb1, 0x895c_d7be,
+        0x6b90_1122, 0xfd98_7193, 0xa679_438e, 0x49b4_0821,
+        0xf61e_2562, 0xc040_b340, 0x265e_5a51, 0xe9b6_c7aa,
+        0xd62f_105d, 0x0244_1453, 0xd8a1_e681, 0xe7d3_fbc8,
+        0x21e1_cde6, 0xc337_07d6, 0xf4d5_0d87, 0x455a_14ed,
+        0xa9e3_e905, 0xfcef_a3f8, 0x676f_02d9, 0x8d2a_4c8a,
+        0xfffa_3942, 0x8771_f681, 0x6d9d_6122, 0xfde5_380c,
+        0xa4be_ea44, 0x4bde_cfa9, 0xf6bb_4b60, 0xbebf_bc70,
+        0x289b_7ec6, 0xeaa1_27fa, 0xd4ef_3085, 0x0488_1d05,
+        0xd9d4_d039, 0xe6db_99e5, 0x1fa2_7cf8, 0xc4ac_5665,
+        0xf429_2244, 0x432a_ff97, 0xab94_23a7, 0xfc93_a039,
+        0x655b_59c3, 0x8f0c_cc92, 0xffef_f47d, 0x8584_5dd1,
+        0x6fa8_7e4f, 0xfe2c_e6e0, 0xa301_4314, 0x4e08_11a1,
+        0xf753_7e82, 0xbd3a_f235, 0x2ad7_d2bb, 0xeb86_d391,
+    ];
+    let x: [u32; 16] = std::array::from_fn(|i| {
+        u32::from_le_bytes([
+            block[4 * i],
+            block[4 * i + 1],
+            block[4 * i + 2],
+            block[4 * i + 3],
+        ])
+    });
     let [mut a, mut b, mut c, mut d] = *state;
-    for i in 0..64 {
+    for (i, &k) in K.iter().enumerate() {
         let (f, g) = match i / 16 {
             0 => ((b & c) | (!b & d), i),
             1 => ((d & b) | (!d & c), (5 * i + 1) % 16),
             2 => (b ^ c ^ d, (3 * i + 5) % 16),
             _ => (c ^ (b | !d), (7 * i) % 16),
         };
-        let k = ((i as f64 + 1.0).sin().abs() * 4_294_967_296.0) as u32;
         let rotated = a
             .wrapping_add(f)
             .wrapping_add(k)
@@ -371,6 +445,60 @@ mod tests {
     use super::*;
 
     #[test]
+    fn packed_vertex_outputs_preserve_name_order_and_declared_interpolation() {
+        let integer = SigElement {
+            name: "TEXCOORD".into(),
+            index: 1,
+            kind: 0,
+            comp: 5,
+            interp: 1,
+            row: Some(0),
+            col: 2,
+            cols: 2,
+            usage: 3,
+            half: false,
+        };
+        let flat_float = SigElement {
+            name: "COLOR".into(),
+            index: 0,
+            comp: 9,
+            col: 0,
+            ..integer.clone()
+        };
+        let smooth_float = SigElement {
+            index: 2,
+            row: Some(1),
+            interp: 2,
+            comp: 9,
+            ..integer.clone()
+        };
+        let outputs = [integer, flat_float, smooth_float];
+        let mut recovered = super::super::signature(&signature(&outputs, false)).unwrap();
+        // DXC orders the row by semantic-name offset even though TEXCOORD
+        // occupies z/w and COLOR occupies x/y.
+        assert_eq!(recovered[0].name, "TEXCOORD");
+        assert_eq!(recovered[1].name, "COLOR");
+        // PSV records can be in a different order again.
+        let psv = psv(&Psv {
+            stage: 1,
+            flag: false,
+            inputs: &[],
+            outputs: &[outputs[2].clone(), outputs[1].clone(), outputs[0].clone()],
+            prims: &[],
+            mesh: None,
+            geometry: None,
+            bindings: &[],
+            threads: [0; 3],
+            wave_size: None,
+        });
+        recovered[1].interp = 2;
+        super::super::vertex_output_interpolation(&psv, &mut recovered).unwrap();
+        assert_eq!(recovered.iter().map(|e| e.interp).collect::<Vec<_>>(), [1, 1, 2]);
+        assert!(super::super::vertex_output_interpolation(&psv[..psv.len() - 1], &mut recovered)
+            .is_err());
+    }
+
+    #[test]
     fn md5_core_matches_the_standard() {
         // Standard MD5 of "abc" with standard padding, through md5_block.
         let mut block = b"abc".to_vec();
@@ -385,5 +513,44 @@ mod tests {
             .map(|b| format!("{b:02x}"))
             .collect();
         assert_eq!(hex, "900150983cd24fb0d6963f7d28e17f72");
+    }
+
+    fn el(name: &str, kind: u8, comp: u8, interp: u8, row: u32, col: u8, usage: u8) -> SigElement {
+        SigElement {
+            name: name.into(),
+            index: 0,
+            kind,
+            comp,
+            interp,
+            row: Some(row),
+            col,
+            cols: 1,
+            usage,
+            half: false,
+        }
+    }
+
+    /// An unread float beside the front face (constant) takes the row's
+    /// mode; a read float keeps its own in an input signature; a row whose
+    /// decided elements disagree, and other rows, are left alone.
+    #[test]
+    fn a_row_keeps_one_interpolation_mode() {
+        let mut inputs = vec![
+            el("TEXCOORD", 0, 9, 2, 0, 0, 0),
+            el("SV_IsFrontFace", 13, 5, 1, 0, 1, 1),
+            el("TEXCOORD", 0, 9, 2, 1, 0, 1),
+            el("SV_IsFrontFace", 13, 5, 1, 1, 1, 1),
+            el("COLOR", 0, 9, 2, 2, 0, 0),
+            el("COLOR", 0, 4, 1, 2, 1, 1),
+            el("COLOR", 0, 5, 4, 2, 2, 1),
+            el("NORMAL", 0, 9, 2, 3, 0, 1),
+        ];
+        same_mode_per_row(&mut inputs, true);
+        let modes: Vec<u8> = inputs.iter().map(|e| e.interp).collect();
+        assert_eq!(modes, [1, 1, 2, 1, 2, 1, 4, 2]);
+        // Outputs: what is written does not decide.
+        let mut outputs = vec![el("TEXCOORD", 0, 9, 2, 0, 0, 1), el("TEXCOORD", 0, 5, 1, 0, 1, 1)];
+        same_mode_per_row(&mut outputs, false);
+        assert_eq!(outputs.iter().map(|e| e.interp).collect::<Vec<_>>(), [1, 1]);
     }
 }

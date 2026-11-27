@@ -5,7 +5,7 @@
 
 pub mod sgd5;
 
-/// A specific build of the the title executable we know how to run.
+/// A specific build of the title executable we know how to run.
 #[derive(Debug, Clone, Copy)]
 pub struct KnownBuild {
     /// Our own label, e.g. "1.0.0 retail".

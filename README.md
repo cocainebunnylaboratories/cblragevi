@@ -1,442 +1,84 @@
-# CBL VIctory
+# CBL VIctory · RTX 5080 tuning
 
-CBL VIctory is a Windows compatibility layer based on Marvisak’s VIctory and fxceless’s renderer. The title’s x86-64 code runs directly on the CPU. VIctory provides the console services it expects and translates its graphics commands and shaders for Direct3D 12. This fork works on getting the scene drawn correctly and reducing the time each frame takes. [Architecture](docs/architecture.md)
+CBL VIctory is a Windows compatibility layer for Xbox Series titles. The `vice-tay-5080-tuning` branch tunes Vice-Tay's Direct3D 12 renderer on an RTX 5080 and Ryzen 9 9950X3D. The `5080-tuning` branch records the earlier 4K experiments. Use your own game files outside the checkout. The repository contains the compatibility layer and its tools. [Architecture](docs/architecture.md) · [Asset policy](docs/asset-policy.md)
 
-## Project status
+## Current results
 
-In the 26 November 2026 playtests on `5080-tuning`, the opening interior renders with characters, furnishings and ceiling lights. With water texture readback enabled, the Chapter 1 boat floats and responds to throttle, and a replay continued into open-world driving and manual saving. Outdoor shadows remain very dark, some surfaces show block artifacts, and water reflections can appear unusually white.
+**Series X at 2560×1440 game output reached roughly 12–15 FPS in the earlier gameplay samples.** In the later Jason slot 2 replay, Petr Seifert’s placed-copy patch moved the median from **68.0 to 63.9 ms/frame** in the 6,000–8,999 draw band. The replay logged zero waits of the specific kind the patch targets, down from 70 records in the warmed reference. Scene workload differed, so the sustained FPS gain still needs confirmation. [Results and measurement conditions](results.md) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
-## Renderer changes tested on `5080-tuning`
+The longest recorded session is **72 min 53 s** at verified **Series X 2560×1440 output**. The manual Prison V1 playthrough went from Lucia in prison through Chapter 1 and Jason free roam, followed by an idle check, a manual save and a clean exit. The median of the gameplay and cutscene reports before idle was **14.5 FPS**. The default branch builds the endurance reference source at `2fb36ee1`, including Petr Seifert’s #285 and Taynan Piza’s #206. The `vice-tay-5080-tuning` branch layers our local optimizations onto that reference. The performance target is **25 FPS (40 ms/frame)**. [Run history and credits](results.md#prison-v1-endurance--28-november-2026)
 
-- **Texture streaming.** CBL’s upload scheduler sorts only the slots a pass can serve. It preserves retry priority and alternates between recent and older writes. PastiiJay’s overflow recovery refreshes texture views when remap records are lost, and myokex’s smaller-mip handling allows partially resident textures to be read. [Implementation credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/patch-provenance.md)
-- **Graphics and memory.** The renderer incorporates fxceless’s frame scheduling and driver diagnostics, tightfall’s parallel buffer comparison submitted by pug205gti6, and shader and pipeline-library fixes carried by KLBF Lab. LooperSalty’s AnyXboxX stack supplied davutsimsekk’s BC7 dictionary fix and Jordan N’s half-float rounding fix. The provenance record credits the original implementations and downstream ports. [Patch history](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/patch-provenance.md)
-- **Water physics.** The boat replay uses Geckomacabre’s GPU texture readback, ported by cxy0072019-sketch, together with PastiiJay’s console XOR texture-addressing port from MiamiGame/XTP and Mesa addrlib. [Water patch credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#boat-readback-replay)
-- **Diagnostics.** Checkpoint replays record the executable hash and run settings. The diagnostic window shows output resolution, uptime, FPS, draws per frame and p95 frame time. The log records successful presents, elapsed time and memory use for scene-by-scene comparison. [Run and measurement guide](results.md)
+## Build and launch
 
-## Test results
+Build from `main` for the endurance reference. Use the explicit `-Machine 5080` replay command below for the recorded configuration. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/5080-tuning.md#open-world-performance-replay)
 
-On Windows with a Ryzen 9 9950X3D and GeForce RTX 5080, diagnostic build `d77c7395` on `5080-tuning` presented at **3840×2160 output** with the Series X profile. The longest recorded session ran **65 min 46 s** from a Chapter 1 checkpoint through the boat sequence into the open world. The player closed the window with no crash or graphics device loss logged during play.
-
-Measured segments averaged **11.42 FPS** with the boat underway, **4.73 FPS** in a late city segment and **4.32 FPS** on foot. A five-second city window dipped to **2.16 FPS**. The session length includes loading and idle time. [Gameplay results](results.md) · [Open-world test plan](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/5080-tuning/docs/cbl/5080-tuning.md#open-world-performance-replay)
-
-Two open-world comparisons at 3840×2160 output tested async presentation. The first moving sample rose from **4.86 to 5.27 FPS** with fewer draws per frame. The repeat measured **4.49 FPS** with the reference profile and **4.54 FPS** with async present. The gain did not replicate over equal-duration movement samples. [Async-present comparison](results.md#open-world-async-present-trial)
-
-## Inherited project documentation
-
-The following text is the fxceless README at `0b0074e`, including its original VIctory documentation, author credits, historical findings and test conditions. Machine-specific figures below belong to the upstream projects. [fxceless source](https://github.com/fxceless/victory-fork/blob/0b0074e0b2765e574c622e9a3de566f20f04135b/README.md) · [Marvisak’s VIctory](https://github.com/Marvisak/VIctory)
-
-# VIctory fork (work in progress)
-
-A work-in-progress fork of [VIctory](https://github.com/Marvisak/VIctory), a
-compatibility layer that runs an Xbox Series title natively on Windows from
-files the user supplies. This fork follows upstream
-`main` and adds fixes aimed at one goal: getting the game's world to render
-correctly and playably on one particular PC.
-
-**This repository contains no game files, code or assets.** You need your own
-copy of the game. It is not affiliated with or endorsed by the game's
-developer or publisher.
-
-## Credits
-
-- **[VIctory](https://github.com/Marvisak/VIctory)** by Marvisak and its
-  contributors is the base of everything here: the loader, the runtime
-  services, the Direct3D 12 back end and the shader recompiler. Licensed
-  GPL-3.0-or-later; so is this fork. Upstream's history is kept intact below
-  the single commit that carries this fork's changes.
-- **[XCL](https://github.com/ivall/xcl)** by ivall and its contributors
-  (GPL-2.0-only) was used as a reference for how the same title behaves under
-  another layer. Fixes inspired by it were written anew in VIctory's code.
-- The guard over every view of a memory page is code by **myokex**
-  ([victory-amd](https://github.com/myokex/victory-amd), commit `c6dc4d8`), which
-  adapts pull request #115 here by Spexivus, its correction by joroyt and a part of
-  VIctory #1122 by tightfall. The read-beside fix for kernel reads into title
-  memory is by **Joshua Odom** (commit `10ea38e` of the same fork family). Both
-  are carried here unchanged apart from one merge conflict.
-- This fork's changes were developed with [Claude Code](https://claude.com/claude-code).
-
-## Status of this fork (2026-11-25)
-
-**Not playable yet: 2.5 to 4 frames per second, and shadowed areas are black.**
-Tested on one machine: Windows 11, Intel i7-14700KF, NVIDIA RTX 4070 12 GB,
-32 GB RAM. The Series X profile is used throughout.
-
-| Stage | State in this fork |
-|-------|--------------------|
-| Boot, menus, start screen | works, 30 fps (as upstream) |
-| Opening cutscene | plays from start to finish, in order, lit: title cards, credits cards, night and dusk shots |
-| Saves | the game autosaves a checkpoint and loads it again |
-| First gameplay scene (the prologue) | renders: characters, textures, sky, sunlit exterior; HUD, pause menu and pad input work |
-| Light in shadow | missing: the game's ray-traced bounce light and ray-traced lamp and sun shadows do not run yet, so anything the sun does not hit directly is black |
-| Frame rate in the world | 2-4 fps: 420-450 ms per frame by default, 240-350 ms with the newer switches (`VICTORY_RELAY=2`, or `VICTORY_LATE_WAIT=3 VICTORY_WIDE_BACK=1 VICTORY_CARD_BUFFERS_MIN_MB=1 VICTORY_CARD_BUFFERS_MB=1024`); it started at 3-6 seconds per frame |
-| Stability | no driver hang or device loss in normal runs (a hang introduced by the wave64 update was found and fixed: its barrier form for 64-lane programs is now off unless `VICTORY_WAVE_WIDE=1`) |
-
-### Newest (2026-11-25, later the same day)
-
-**Update, the same night: the first room now renders right on the test
-machine** (walls, textures, people, lamps), at 190 to 450 ms a frame (2 to 5
-frames a second): the picture work has caught up, the frame rate has not.
-What did it, on top of the list below:
-- Descriptor records the title copies into its heap as plain bytes are
-  mirrored before every submission (pull request #305 by Flyander, after
-  upstream VIctory 86a5ed6). Measured here: about 40,000 records a frame
-  that no call had announced; their host slots were empty or stale.
-- A buffer view that does not start on an element of its buffer's host
-  copy gets a copy of its own bytes instead of being refused (after
-  upstream 86a5ed6): 3 to 6 such views a frame.
-- Room on the card is kept for the render targets and buffer copies a
-  world makes in its first frame: 98 buffer copies are made (945 MB) where
-  the runs before made 1, and the processor no longer compares 550 to
-  710 MB a frame looking for shader writes (25 MB now).
-- Levels on demand ran on the card for the first time
-  (`VICTORY_LEVELS_ON_DEMAND=1`, still off by default; with the fixes of
-  pull request #747 by AscilCH): 3.1 GB of the card not allocated for
-  texture levels the title does not hold, no device loss.
-- Guarded blocks under storage writes are opened by default; 14 more
-  shader programs translate; a program is translated with first-half
-  interpolation pairs only if it was refused for one (with that on for
-  every program, 8,551 working pixel programs came out changed).
-- Frame rate, first cuts on the processor side: the descriptor sync uses a
-  cheap fingerprint and leaves draw-table slots to their draws (the pass
-  over the heap went from 70-220 ms a frame to about 3), and memory the
-  guards already hold is not asked of the write watch (pull request #670
-  by Jonirulah). Card copies' pieces can come down inside their own
-  flights (pull request #648 by Jonirulah, `VICTORY_CARD_FETCH_INFLIGHT=1`,
-  off by default: the copy-back thread's wait went from 181 ms a frame to
-  0 here, but the card got busier, so no gain is claimed yet). The frame is
-  still 250 to 380 ms: the card is the limit now, most of it the
-  per-record clamp before each of some 6,700 indirect draws a frame.
-- Pull request #220 (cheaper indirect draws) is IN this tree now, its
-  windows off by default (`VICTORY_INDIRECT_WINDOW=1`). History, so nobody
-  repeats it: with windows on it lost the device three times here. Its own
-  checker (`VICTORY_INDIRECT_WINDOW_CHECK=1`) then showed one list drawing
-  90 records of 2^24 vertices from a window, where the per-draw path lets
-  eight through; a record of 2^23 vertices an instance or more now runs
-  empty. Since that fix: eight runs with windows on, seven without a
-  device loss and one that lost the device 44 s into the world (cause not
-  found; see the driver watch below). One earlier loss after the fix had
-  the in-flight fetch (#648) on as well; do not combine the two. The
-  in-flight fetch itself measured slower here in two runs and stays off.
-- Frame rate, second night (an RTX 4070; the first room went from about
-  3.5-4 to 6-7 frames a second with ALL of the switches below; the
-  defaults are unchanged and give about 4.5-5):
-    - `VICTORY_ASYNC_SUBMIT=1`: submissions are prepared and sent by a
-      thread of the layer, not by the title's render thread, which a
-      profile showed inside the submit path for 257 of 292 ms a frame.
-    - `VICTORY_QUEUE2=1`: fetches of what shaders wrote go to a copy queue
-      (brought back, with the fix for a piece fetched beside a later
-      flight); the copy-back thread's wait fell from about 125 to 7 ms a
-      frame.
-    - `VICTORY_INDIRECT_WINDOW=1`: see above.
-    - `VICTORY_TEXTURE_NO_WAIT=1`: a texture refresh no longer waits while
-      the title remaps memory; the loading phase had 5 readings over a
-      second where it had 18.
-    - `VICTORY_MERGE_GAP=64 VICTORY_MERGE_RUNS=4096`: title bytes put in
-      under flights' shader writes are joined over small gaps (NOT exact:
-      read the comment at `merge_gap` before using it).
-    - On by default: fills of upload memory and read-only buffer copies no
-      longer wait for flights and are checked against what the flights then
-      wrote (`VICTORY_FILL_WAIT=1` waits as before; no mismatch in any run
-      so far); up to 512 idle host lists and texture staging buffers are
-      reused instead of made and freed every frame.
-    - `VICTORY_PROFILE=1` (diagnostics builds): a sampling profiler inside
-      the layer; it is how the above was found.
-- Frame rate, third session: measuring first (same RTX 4070, first room).
-    - A frame log (`VICTORY_FRAME_LOG`, on in diagnostics builds): every
-      frame's length, and for the usual frame and each long one what it was
-      made of (the render thread's time in the present call, the submit
-      thread's work, copies, copy-back, recording, texture work, faults,
-      disk). A card meter (`VICTORY_CARD_METER`) adds the card's time by
-      kind of list from a timestamp at each list's start and end.
-    - What they showed, windows off: a usual frame of 136 ms; the title's
-      render thread waits 77 ms of it in the present call for the submit
-      thread, which works 118 ms (copies of title memory 41, copy-back 40);
-      the card is 85-98 % busy, of about 130 ms a frame 16 ms in our lists
-      that bring card copies up to date, 10 ms in our compare lists and 102
-      ms in the title's own lists with the per-record clamp. Frame time is
-      linear in draws (about 32 microseconds a draw all-in): the title draws
-      about twice as much on some frames, which are the long ones.
-    - The regular dips of earlier test runs were the test harness: a saved
-      frame (`VICTORY_CAPTURE_WORLD`, every 8th world frame) is read back
-      and written as a PNG inside the present, 235 ms each.
-      `VICTORY_CAPTURE_WORLD_EVERY=64` for runs that measure speed.
-    - `VICTORY_INDIRECT_WINDOW=1` measured again with those instruments. A
-      CORRECTION: the first figures given here (6.0 against 8.9 frames a
-      second) compared two runs that stood in different scenes during the
-      measured window (about 4,300 against 1,550 draws a frame) and are
-      withdrawn. Compared at equal draws, by a line fitted to each run's
-      frame times against its draws per frame: windows off 145 ms at 4,500
-      draws and 271 ms at 10,000; windows on with `VICTORY_COPY_PLAIN=1`
-      124 ms and 211 ms. On screen: 7-8 frames a second in the first rooms,
-      10-12 in their lighter views.
-    - A driver watch (on by default; `VICTORY_DRIVER_WATCH=0` off): the
-      layer subscribes to the system's event log and logs every entry of a
-      display driver as it is recorded; the first one turns draw windows
-      off for the rest of the run. Every device loss here had such entries
-      2.7 to 55 seconds before the device was removed, and no run without
-      them lost its device.
-    - A copy between two title textures that share one host texture is no
-      longer recorded (the host does not allow a texture copied onto
-      itself): 402 of them in a five-minute run.
-    - The list of shader-visible heaps is a reader-writer lock (recording
-      threads waited 48 ms a frame, summed, behind the heap sync); the heap
-      sync looks at a changed page's records under one lock, fingerprint
-      first; guarded view memory is left out of a submission's write-watch
-      askings ahead (after triippywhale).
-    - `VICTORY_COPY_PLAIN=1`: copies of title memory made in place by this
-      process, with a handler that falls back to the kernel's copy on a
-      missing page. Its first form also took the layer's one-byte "is this
-      page there" reads, 1,000 to 1,300 faults a frame, and won nothing;
-      reads under 256 bytes now stay with the kernel and a source that
-      faulted is left alone for two seconds (4 to 9 faults a frame). The
-      submit thread's kernel time fell from 44 to 20 ms a frame; the
-      picture is the same.
-    - The layer's submit and copy-back threads ask for the fast cores of a
-      hybrid processor (`VICTORY_FAST_CORES=0`: not): the submit thread was
-      found on a slow core in 6 % of its looks, now in none of 21,059.
-      `VICTORY_DISK_CORES=slow` (off, not measured) asks the slow cores for
-      the DirectStorage workers, which are as many as the logical
-      processors and free to run anywhere.
-    - Behind switches, built and unit-tested, not yet shown to pay:
-      `VICTORY_REFRESH_ONCE=1`, `VICTORY_VIEW_KNOWN=1`,
-      `VICTORY_BACK_OWN_VIEW=1` (picture to be checked),
-      `VICTORY_ASYNC_PRESENT=1` (the present goes behind the queue's line;
-      no gain while the card is the limit).
-    - Tried and refused: `VICTORY_BVH_HOLD=1` holds back the 64 programs
-      that walk ray-tracing structures nothing has built; the picture loses
-      its indirect light with it, so it stays off.
-    - The process opts out of the system's efficiency mode
-      (`VICTORY_EFFICIENCY_MODE=1` leaves it); on a hybrid processor the
-      frame log found the title's render and recording threads on fast
-      cores in every look of a run, and the layer's submit thread on a slow
-      core in 6 % of its looks.
-      Still open: the per-record clamp is most of the card's time, and the
-      copies between the PC's memory and the card's are most of the submit
-      thread's; the cause of the one device loss with windows is not known.
-      A first play session past the first rooms reached the open world and
-      lost the device there with no driver entry (reason "device removed"):
-      the card had no room for new textures from the opening cutscene on
-      (9.2 of a 10.3 GB budget on a 12 GB card; 2,073 passes made no texture
-      for lack of room; 44,613 textures let go and made again in 13 minutes).
-      Cause of that removal not known either.
-- Known and counted, not fixed yet: an indirect compute pass asks for
-  about 77,500 thread groups in x where one dispatch runs 65,535 (the
-  rest is cut off).
-
-Memory sync between the title's memory and the copies on the card:
-- **A write through one view of a physical page is seen by the copies taken
-  through its other views** (`VICTORY_VIEW_GUARD=0` turns it off). The title
-  shows one page at several addresses and a copy was guarded at one of them
-  only. Measured on the test machine: 0.8 to 1.0 million such writes in a
-  five-minute run, every one of which used to leave a copy stale. Since it
-  went in, the first room had its walls in the later frames of 4 runs out of
-  4 (2 of 5 before); the room's very first shot still comes up without walls
-  in some runs.
-- Kernel reads into title memory are read beside and copied in, so a block
-  guarded again in between no longer fails the read.
-- Writes of the storage layer into physical pages are counted where the title
-  has those pages mapped (10,000 to 50,000 guarded blocks of copies lay under
-  them in every run) and can open the guards there:
-  `VICTORY_PAGE_WRITES=guards` (off by default; `1`, `slots`, `all` do more).
-- Failed page-destination reads are retried (`VICTORY_DSTORAGE_RETRIES=0` = as before).
-
-Card memory (the test card is full from the first frame of the world: 85 to
-99 % of its budget for a whole run, about 26,000 texture copies let go and
-3,400 made again in five minutes, 2.8 GB of render targets that are all in
-use):
-- Levels on demand, **off by default** (`VICTORY_LEVELS_ON_DEMAND=1`): a
-  texture the title fills takes card memory only for the levels the title
-  holds (2.2 to 3.0 GB of the copies were levels it does not hold). Its test
-  runs on the software adapter; it has not run on a card yet.
-- Refused texture slots are held back for a few seconds so that a pass
-  reaches the slots behind them (`VICTORY_FULL_CARD_PASS=0` = as before);
-  room can be kept for the card copies of title buffers
-  (`VICTORY_CARD_ROOM_FOR_BUFFERS=1`, off).
-
-Tools and diagnostics:
-- `victory translate <shader file> --warm all --jobs N` translates every
-  shader ahead of a run, on the processor only (about 4.5 to 6.5 minutes
-  here); the shader cache is keyed on the translator's source, so a new
-  build that does not touch the translator starts warm.
-- Counters, all off or diagnostics-only: `VICTORY_MERGE_RACE=1` (title bytes
-  a copy-back is about to put back to older values: none found in 138,000
-  copy-backs), `VICTORY_WALLS_TRACE`, `VICTORY_CARD_ACCOUNTING`, and a census
-  of the copies the texture sweep never lets go.
-
-### What this fork changed (summary)
-
-Rendering:
-- Meshlet culling read its scene buffers as the wrong kind of view, so the world drew almost nothing; fixed.
-- Per-draw descriptor tables could run out, after which draws used slots never made for them and the card hung; fixed.
-- Light packed by the game's compute shaders was read back through empty copies (sky, probes, fog); fixed for every mip level and layer.
-- The fog reconstruction, shadow-mask, hair, blend-shape skinning, fire and several material programs did not translate; fixed.
-- Gathers at a named mip level (with and without an offset) read level 0; fixed.
-- Implicit-level samples outside pixel shaders produced invalid DXIL in 730 compute programs; fixed.
-- Rectangle lists, depth and stencil twins for depth textures written by compute, texture read-backs.
-- Ray tracing, in progress and off by default: the game's own structure-builder programs translate, title memory can be read by raw address from shaders, the hardware ray/box and ray/triangle test is emulated in DXIL (checked against a reference on the GPU), and 59 of the 64 trace programs translate. Nothing is lit by it yet. See [docs/fork-ray-tracing.md](docs/fork-ray-tracing.md).
-
-Speed and memory:
-- Waits for memory values, write-watch queries and page queries no longer walk page tables per call.
-- Large title buffers get a copy in card memory, with shader writes found by hashing on the card.
-- Submissions can be sent ahead of the wait for the card (`VICTORY_LATE_WAIT`), with a relay thread that lands results as the card finishes (`VICTORY_RELAY`): in a first five-minute run the card's idle time behind the submitting thread fell from about 136 to 30 ms per frame.
-- Title memory can be opened as a graphics heap so that buffers are used in place instead of copied (`VICTORY_INPLACE`, first stage only; a probe confirmed the approach on the test GPU).
-- The bindless texture queue no longer uploads stale views; the view table no longer grows without bound; the pipeline library is mapped instead of read into memory.
-- An intermittent device loss was traced to the pipeline library file being replaced while mapped; fixed.
-
-- Translated shaders get clean-up passes over the finished module (dead code, constant folding, reuse of values, branch facts); the pack's host instruction count falls by about 43 %, worth about 20 ms of GPU time per frame on the test machine (`VICTORY_SHADER_OPT=0` turns them off).
-
-Most of the newer speed changes sit behind environment switches that are off
-by default (`VICTORY_LATE_WAIT`, `VICTORY_RELAY`, `VICTORY_WIDE_BACK`,
-`VICTORY_CARD_BUFFERS_MIN_MB`, `VICTORY_INPLACE`, `VICTORY_BVH_BUILDER`, ...).
-Each is described in a comment where it is read.
-
-### Known problems
-
-- Everything in shadow is black (see above).
-- The interior of the first gameplay room is sometimes not drawn after the cutscene hands over to gameplay.
-- Around 24 GB of memory is in use during play.
-- A few style lints are switched off for this fork in the workspace `Cargo.toml` until the newer code is tidied.
-- Many changes here are specific to this title and this GPU, and some are marked `shortcut:` in the code where they approximate what the console does.
-
-Everything below this line is upstream VIctory's own README, unchanged; its
-status section describes upstream, not this fork.
-
----
-
-# VIctory
-
-Runs the title (Xbox Series X|S) natively on Windows, from files
-the user supplies.
-
-The title's x86-64 code runs unchanged inside our process; VIctory supplies
-the platform underneath it and converts the title's data, ahead of time where
-it can and on first use where it must (shaders). See
-[docs/architecture.md](docs/architecture.md).
-
-## Status (2026-11-23)
-
-**Not playable yet.** The title boots, runs its menus at its own 30 fps and
-loads the world, where rendering fails.
-
-| Stage | State |
-|-------|-------|
-| Boot, first-boot screens (accessibility, language, settings, legal) | works, 30 fps |
-| Intro video with sound | works |
-| Start screen, profile and saves | works |
-| Loading into the world (about 50 s) | works |
-| The world (first mission's intro) | reached and runs with indirect draws; its title card renders, the scene after it is still dark; 0.5-1.8 s per frame |
-
-Tested on one machine: Windows 11, AMD RX 6700 XT.
-
-> **Warning.** Entering the world on a real GPU can currently hang it, and
-> Windows then resets the display driver (every monitor goes black for a
-> moment). To look further, use a diagnostics build with
-> `VICTORY_D3D12_WARP=1`, which renders on the software adapter.
-
-What each part does today and what it still needs:
-
-| Subsystem | Today | Needs |
-|-----------|-------|-------|
-| Loader | Runs the title's executable and its DLLs in our process; crash reports name the faulting code and are kept in `crashes.log` | – |
-| Runtime services | One signed-in offline user, licences, packages, saves that survive a kill at any step, text entry dialog | Speech is silent; the dialog and relaunch are untested live |
-| Network | Offline by design: the title cannot reach the network | – |
-| Files and streaming | Archives and streamed data read, zlib and BCPack decoded in parallel | Loading is limited by writes into title memory |
-| Input | XInput pads, keyboard, keyboard stand-in pad | Trigger rumble |
-| Audio | Menu, video and loading sound; XMA voices and Opus streams decode | Reverb is silent; Opus results unverified against the title |
-| GPU: menus | Draws, compute and presentation on host D3D12; only changed title memory is copied | Frame pacing drifts on one screen in release builds |
-| GPU: world | Mesh pipelines, shader-written buffers, descriptor lifetimes, indirect execution (arguments clamped), pipelines made by worker threads and kept on disk | Most of the scene is still missing (untranslated shaders drop draws); frames take seconds; real queries, depth bounds, HDR and scaling are missing |
-| Shaders | Console GPU code recompiled to DXIL at first use, cached on disk. Menus: all. World: mesh 8,191 of 8,506, vertex/pixel 10,617 of 12,346, compute 1,643 of 2,539 | 64-bit image atomics, merged geometry stages, the ray-tracing builder's shaders; some compute programs need a GPU with 64-lane waves |
-| Textures | Console tiled layouts and detiling for the modes the title uses | Render-target metadata planes |
-| Series S mode | Runs through the menus to the loading screen | The world, as above |
-
-## Getting started
-
-Requirements: Windows 10/11 x64, a CPU with AVX2, a Direct3D 12 GPU with
-shader model 6.6 (and mesh shaders for the world), Rust (pinned in
-`rust-toolchain.toml`).
-
-The title also needs several GiB of available Windows commit at startup.
-Check **Committed** under **Task Manager → Performance → Memory**. If
-`crashes.log` reports Windows error 1455, close other applications or increase
-the Windows paging file size, then retry.
+Use Windows 11, a Direct3D 12 GPU with shader model 6.6 and mesh shader support, the MSVC build tools and Windows SDK, and the repository's pinned Rust toolchain. Create `victory.toml` from the example if you need a new configuration, then set `game_dir` to your own dump. Use a regular PowerShell session from the repository root. [Configuration example](victory.example.toml) · [Vice-Tay build and Windows 10 Agility SDK notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md#getting-started)
 
 ```powershell
-cargo xtask install-hooks                # asset-policy check on every commit
-copy victory.example.toml victory.toml   # then set your paths (outside the repo)
-cargo test --workspace                   # needs no game data
-cargo run -p victory -- config           # check your paths
+cargo build --locked --profile diag -p victory --features diagnostics
+.\scripts\play-series-x-1440p.ps1
 ```
 
-Run the title:
+| Script in `scripts` | Profile | Requested game output |
+| --- | --- | --- |
+| `play-series-x-1440p.ps1` | Series X | 2560×1440 |
+| `play-series-x-4k.ps1` | Series X | 3840×2160 |
+| `play-series-s-1080p.ps1` | Series S | 1920×1080 |
+| `play-series-s-4k.ps1` | Series S | 3840×2160 |
+
+The four scripts launch windowed and keep the game's aspect ratio on ultrawide displays. `VICTORY_WINDOW_MAX` caps the window within the monitor work area. `VICTORY_OUTPUT` sets the game's output size and back-buffer selection on the supported title build. Internal rendering follows the title's upscaler and profile. Verify the output patch and presentation dimensions in `trace.log`. The Series S 1440p preset was replaced with 1080p after the former hit a breakpoint before its first present. Series S 1080p launched and exited cleanly. [Resolution and test notes](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md#rtx-5080-test-setup-and-measurement-procedure)
+
+`play.ps1` accepts `-VictoryExe` for an isolated build, `-Exe` for a game executable, and `-More` for explicit environment overrides. The presets warm shaders and pipelines before play. The warmer skips the archive scan when its build, driver, archive and shader settings match the cache stamp. It warms previously recorded pipelines when the inputs are available. Runs record new pipeline inputs and stream logs to `target/play-logs/<run>`. The directory contains `boot.log`, `trace.log` and `run.json`, which records the executable SHA-256, settings, timestamps and exit code. F3 toggles the performance panel. [Launcher](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/play.ps1) · [Cache warmer](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/warm-cache.ps1)
+
+### Restore a backup save
+
+Close VIctory first. Pass a snapshot folder name or full path under the configured backup directory. The script stages a copy, preserves any previous active saves in a dated `saves-before-restore-*` directory, and installs the copy under the configured VIctory data directory. The source backup stays intact. [Restore script and backup root](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/scripts/restore-save.ps1)
 
 ```powershell
-cargo build --release -p victory
-target\release\victory.exe run <game dir>\<the title's exe> --execute
+.\scripts\restore-save.ps1 -Path 'your-snapshot-folder'
 ```
 
-The window caption shows the framerate. Saves, settings and `crashes.log`
-are kept under the data folder (default `%LOCALAPPDATA%\victory\data`), derived
-data under the cache folder.
+## Applied tuning
 
-Input: XInput pads. With none connected the keyboard is a pad while the
-title's window has focus:
+Use `-Machine 5080` with `play.ps1` to reproduce the measured Prison V1 settings. It inherits Vice-Tay's 4090 submission, GPU copy and shader settings, and sets four mapping threads, CPU scheduling level 2, page-fault-only DRED, frame generation off and the optional readback pool off. The convenience launchers select the vendor preset automatically.
 
-| Keys | Pad |
-|------|-----|
-| W A S D / I J K L | left / right stick |
-| arrows | D-pad |
-| Enter, Backspace, X, Y | A, B, X, Y |
-| Q / E, Z / C | shoulders, triggers |
-| F / H | stick clicks |
-| Esc, Tab | Menu, View |
-
-## Commands
-
-```
-victory inspect <exe|dll> [--imports] [--exports]
-victory census [paths...] [--missing] [--strict]
-victory lib-exports <import.lib> [--list]
-victory shader-info [paths...] [--verbose] [--disasm]
-victory translate [paths...] [--validate] [--pipelines] [--list] [--jobs N]
-victory run <exe> [--execute] [--unimplemented trap|zero] [--strict]
-            [--console series-x|series-s] [-- <title arguments>]
-victory config
-```
-
-Logging: `VICTORY_LOG=victory_loader=trace,info` (a release build logs
-info and above).
-
-## Debugging
-
-A release build has no debugging aids. Build them in with
+| Area | Settings used in the 1440p replay |
+| --- | --- |
+| Workers | `VICTORY_FAST_CORES=2`, `VICTORY_MAP_THREADS=4`, `VICTORY_THIN_THREADS=12`, `VICTORY_UNDER_THREADS=8`, `VICTORY_LAND_THREADS=6`, `VICTORY_TITLE_PRIORITIES=0` |
+| Submission and copies | `VICTORY_RELAY=2`, `VICTORY_RELAY_COPY=1`, `VICTORY_WIDE_BACK=1`, `VICTORY_CARD_STEPS=2`, `VICTORY_CARD_REHASH_RUNS=1`, `VICTORY_PLACED_ORDER=1`, `VICTORY_JOIN_COPIES=1`, `VICTORY_JOIN_PARTS=8` |
+| Draw and upload preparation | `VICTORY_THIN=1`, `VICTORY_INDIRECT_WINDOW=1`, `VICTORY_INDIRECT_BATCH=2`, `VICTORY_UPLOAD_AHEAD=1`, `VICTORY_TEXTURE_NO_WAIT=1` |
+| Output and diagnostics | `VICTORY_OUTPUT=2560x1440` with a matching window target, `VICTORY_AMBIENT=0.8`, `VICTORY_SHOW_AFTER=1`, `VICTORY_PANEL=1`, `VICTORY_D3D12_DRED=faults`, `VICTORY_PIPELINE_BOOK=1`, `VICTORY_LOG=info` |
+| Shader compatibility | The four-pipeline NVIDIA allowlist in `VICTORY_WAVE_WIDE_ONLY` |
+| Disabled for comparison | Frame generation, texture readback pool and the experimental retirement worker. The normal water texture readback path remains enabled. |
 
 ```powershell
-cargo build --profile diag -p victory --features diagnostics   # target\diag\victory.exe
+$timeline = "target\play-logs\series-x-1440p-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
+.\scripts\play.ps1 -Console series-x -Machine 5080 -Windowed -WindowSize 2560x1440 -WarmCache -CaptureLog -More @{
+    VICTORY_OUTPUT = '2560x1440'
+    VICTORY_WINDOW_MAX = '2560x1440'
+    VICTORY_TIMELINE = "75+95,5,$timeline"
+}
 ```
 
-| Variable | Effect |
-|----------|--------|
-| `VICTORY_LOG=<target>=debug,...` | debug and trace output |
-| `VICTORY_STACKS=20,60` | every thread's stack at those seconds |
-| `VICTORY_WATCH=<rva>,...` | logs a title u32 when it changes |
-| `VICTORY_KEYS=30:Enter,35:X` | presses keys at those seconds, focus or not |
-| `VICTORY_CRASH_SAVE=<rva>:<len>,...` | saves title memory to the cache folder on a crash |
-| `VICTORY_CAPTURE=<dir>` | saves presented frames (powers of two, or `VICTORY_CAPTURE_FRAMES=<list>`) |
-| `VICTORY_DUMP_TARGETS=1` | with the two above, saves every render target of those frames |
-| `VICTORY_D3D12_DEBUG=1` | host debug layer |
-| `VICTORY_D3D12_GBV=1` | with the above, GPU-based validation (bad descriptor use reported, not faulted; slow) |
-| `VICTORY_D3D12_DRED=1` | on a GPU failure, the allocation hit and the commands in flight |
-| `VICTORY_PIPELINE_WAIT_MS=24` | reduce the per-frame wait for background pipeline creation from the default of 500 ms. A draw can be omitted until its pipeline is ready |
-| `VICTORY_SKIP_PIPELINES=<hash>,...` | omit draws and dispatches, including indirect ones, whose pipeline contains a listed 16-digit shader hash |
-| `VICTORY_GPU_TIMING=1` | with the above, each list of a submission run and timed on its own; slow lists logged with their slowest commands |
-| `VICTORY_D3D12_WARP=1` | host device on the software adapter (slow; cannot reset the driver) |
-| `VICTORY_SHADER_LOOP_LIMIT=<n>` | translated shader loops stop after `n` iterations per lane instead of 2^20 (own shader cache entries); if a lower `n` makes world frames much faster, loops hitting the limit are what makes them slow |
-| `VICTORY_AUDIO_CAPTURE=<file.wav>` | records what the title plays (our process only) |
-| `VICTORY_XMA_DUMP=<dir>` | saves the first 32 XMA voices' context and input |
+This command runs the diagnostic build in `target/diag`. Load Prison V1 to follow the endurance route. The original run also captured five frames each at 15, 25 and 45 minutes. Use `VICTORY_TIMELINE="75+95+900+1500+2700,5,$timeline"` in the hashtable to reproduce those captures. [Build identity and route](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference)
 
-Every build appends crashes and host GPU failures to `crashes.log` in the
-title's data folder.
+## Local changes and trials on `vice-tay-5080-tuning`
 
-## License
+- **Buffer refresh planning.** The local planner accumulates buffer ranges during the command-list walk and preserves their original order and shader-write boundaries. The measured planning spans got shorter in both captures. FPS in the tighter draw-count band was nearly flat. [Jason slot 2 results](results.md#jason-slot-2--28-november-2026)
+- **Placed-copy fill forwarding.** Petr Seifert's Vice-Tay PR #285 lets eligible GPU fills read from a placed copy's source to avoid a submission split or wait. The tuning branch imports upstream commit `9dea421b` with its original authorship. [Upstream commit](https://github.com/TaynanGT/Vice-Tay/commit/9dea421bf4469ce3511c4b15481d64dd585de25d) · [Local provenance and benchmark](docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november)
+- **Page mapping.** The planner prepares aligned groups outside the mapping lock, tracks contiguous destinations as an interval and reuses a set for scattered destinations. It preserves dependency order, actual host mapping calls, write guards and GPU notifications. All 5,000 generated planner comparisons matched, and all 19 Windows mapping tests passed. The native CPU benchmark moved from 116.7 µs to 4.7 µs for a synthetic 4,096-page contiguous request. [Code](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-hle/src/modules/xmem.rs) · [Benchmark](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md#local-candidate-on-the-pinned-build-27-november)
+- **Relay measurements.** The tuning branch times list readbacks, flight resource completion, descriptor release, title notifications and retirement. Its optional retirement worker releases completed descriptor resources after fence completion and the existing retirement lag. It releases inline when the queue is full. The trial shifted some retirement time off the relay, with little change in total frame time. [Relay implementation](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/crates/victory-gpu/src/host.rs) · [Results](results.md)
+- **Scheduling and buffer reuse.** Scheduling level 2 remains the reference after the level 1 comparison changed direction across sample windows. Four mapping threads had the better midrange result against the inherited automatic setting. The upstream texture readback pool reused most buffers and reduced driver allocations, with similar overall frame times in the tested route. [Experiment ledger](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/cbl/vice-tay-1440p-tuning.md)
+- **Upstream integration.** The tuning branch shares the `a9612459` runtime base with the Prison V1 reference. It carries the earlier Vice-Tay renderer changes and adds Petr Seifert’s #285 and Taynan Piza’s #206 with their original authorship and source revisions. The local page-mapping and buffer-refresh planners are included, and the retirement worker remains opt-in. [Reference and build provenance](docs/cbl/vice-tay-1440p-tuning.md#prison-v1-endurance-reference)
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+## Known problems
+
+Taynan Piza’s #206 ambient lighting fix cleared broad areas of almost-black shade in the short Jason slot 2 checks. The longer Prison V1 run still showed occasional pink tint through the police-car window and on foliage during moving scene loads. Low-light shadows can remain very dark. Hard-edged rectangular artifacts appeared on water during the boat and flight sequences. Models, buildings and dry terrain generally looked good, with a short low-detail transition at the start of Chapter 1. [Endurance visuals](results.md#prison-v1-endurance--28-november-2026) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+
+Open-world performance remains below the 25 FPS target. Frame preparation and copy-back can delay GPU submissions, and world entry can compile new pipelines and stall. Draw drops and workload vary with the route. [Results](results.md)
+
+## Credits and license
+
+Based on Marvisak's VIctory, fxceless's renderer work and TaynanGT's Vice-Tay, with upstream authors and port credits preserved in Git history and the archived README. GPL-3.0-or-later. [Credits](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/credits.md) · [Archived Vice-Tay README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/vice-tay-5080-tuning/docs/README-vice-tay.md) · [Original at `0d509383`](https://github.com/TaynanGT/Vice-Tay/blob/0d509383234b73d5452b4ccb4b0aee60c8b67d14/README.md) · [Earlier 5080 project README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/README.md) · [License](LICENSE)
+
+The previous README preserves the earlier renderer and water-readback credits, the 4K playtests, and inherited fxceless documentation. [Previous default-branch README](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/f39c4c8d/README.md) · [First-mission rendering investigation](docs/cbl/first-mission-rendering.md)
