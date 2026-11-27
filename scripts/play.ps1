@@ -3,10 +3,14 @@
 # -Safe         without the newer, faster ways (the first thing to try when something is wrong)
 # -RayTracing   the title's own ray-traced indirect light: lit interiors, about a third slower
 # -Windowed     a window instead of the whole screen (full screen is the default)
+# -WindowSize   3840x2160, 2560x1440 or 1920x1080, fitted to the monitor while keeping proportions
+# -WarmCache    warm shaders and used pipelines, then record pipeline inputs while playing
+# -CaptureLog   save native output and run settings in target\play-logs
+# -SkipShaders  start without pretranslating shaders
 # -NoPanel      without the performance panel (on by default, F3 hides it while playing)
-# -SkipShaders  start even when the shader cache is cold (otherwise every shader is translated first)
 # -Console      series-x (the default) or series-s: the console the title takes this PC for
 # -Build        target\diag (the default, the build all measurements are of) or target\release
+# -VictoryExe   use a separately built VIctory executable
 # -Machine      auto (the default: by the graphics card), 7900xtx, 4070 or 4090
 # -More         other settings: -More @{VICTORY_PANEL='1'} or -More @{VICTORY_AMBIENT='1.0'}
 # On a smaller NVIDIA PC, compare the same Series S scene after a fresh start
@@ -14,16 +18,20 @@
 # copy-back work, or -More @{VICTORY_THIN_THREADS='6'} for list translation.
 # Run it from a normal window, not as administrator: the driver then keeps its shader cache elsewhere.
 param(
-    [Parameter(Mandatory)][string]$Exe,
+    [string]$Exe,
     [switch]$Safe,
     [switch]$RayTracing,
     [switch]$Windowed,
     [switch]$NoPanel,
-    [switch]$SkipShaders,
     [ValidateSet('series-x', 'series-s')][string]$Console = 'series-x',
     [ValidateSet('diag', 'release')][string]$Build = 'diag',
     [ValidateSet('auto', '7900xtx', '4070', '4090')][string]$Machine = 'auto',
-    [hashtable]$More = @{}
+    [hashtable]$More = @{},
+    [ValidateSet('3840x2160', '2560x1440', '1920x1080')][string]$WindowSize,
+    [switch]$WarmCache,
+    [switch]$CaptureLog,
+    [switch]$SkipShaders,
+    [string]$VictoryExe
 )
 $settings = @{
     VICTORY_TEXTURE_NO_WAIT = '1'; VICTORY_RELAY = '2'; VICTORY_WIDE_BACK = '1'; VICTORY_CARD_REHASH_RUNS = '1'
@@ -84,10 +92,13 @@ if ($Safe) {
 }
 if ($RayTracing) { $settings.VICTORY_BVH_BUILDER = '1' }
 # The whole screen, with no frame, as on the console.
-if (-not $Windowed) { $settings.VICTORY_FULLSCREEN = '1' }
+if (-not $Windowed -and -not $WindowSize) { $settings.VICTORY_FULLSCREEN = '1' }
+if ($WindowSize) { $settings.VICTORY_WINDOW_SIZE = $WindowSize }
 # The performance panel (FPS, frame times, GPU, CPU, VRAM, RAM) in the upper left
 # corner, so clips and screenshots show what the build runs at and on what PC.
 if (-not $NoPanel) { $settings.VICTORY_PANEL = '1' }
+if ($WarmCache) { $settings.VICTORY_PIPELINE_BOOK = '1' }
+if ($CaptureLog) { $settings.VICTORY_LOG = 'info' }
 foreach ($k in $More.Keys) { $settings[$k] = $More[$k] }
 
 $ram = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
@@ -100,9 +111,28 @@ if ($ram -and $ram -lt 60GB) {
     Write-Host ("Windows reports {0:N1} GiB of physical RAM. Keep a system-managed page file. See docs/measurements.md for measured Series S memory use." -f ($ram / 1GB))
 }
 
-$victory = Join-Path $PSScriptRoot "..\target\$Build\victory.exe"
-if (-not (Test-Path $victory)) { Write-Host "No $victory. Build it first (README.md)."; exit 1 }
-if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { Write-Host "No $Exe."; exit 1 }
+$victory = if ($VictoryExe) { $VictoryExe } else { Join-Path $PSScriptRoot "..\target\$Build\victory.exe" }
+if (-not (Test-Path -LiteralPath $victory -PathType Leaf)) {
+    Write-Host "No $victory. Build it first (README.md)."
+    exit 1
+}
+$victory = (Resolve-Path -LiteralPath $victory).ProviderPath
+if (-not $Exe -and $WindowSize) {
+    Push-Location -LiteralPath (Join-Path $PSScriptRoot '..')
+    try {
+        $config = & $victory config
+        if ($LASTEXITCODE -ne 0) { throw 'Could not read the VIctory configuration.' }
+        $gameDir = $config | Select-String '^game_dir\s*:\s*(.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+        if ($gameDir -and (Test-Path -LiteralPath $gameDir -PathType Container)) {
+            $candidate = Join-Path $gameDir 'game_scarlett_master.exe'
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $Exe = (Resolve-Path -LiteralPath $candidate).ProviderPath
+            }
+        }
+    } finally { Pop-Location }
+}
+if (-not $Exe) { $Exe = Read-Host 'Path to the game executable' }
+if (-not $Exe -or -not (Test-Path -LiteralPath $Exe -PathType Leaf)) { Write-Host "No game executable at '$Exe'."; exit 1 }
 # (Other settings left over in this window go; where your files are stays.)
 $paths = 'VICTORY_CONFIG', 'VICTORY_GAME_DIR', 'VICTORY_CACHE_DIR', 'VICTORY_DATA_DIR'
 $inherited = @(Get-ChildItem Env:VICTORY_* | Where-Object { $_.Name -notin $paths })
@@ -114,10 +144,17 @@ $discarded = $inherited | Where-Object {
 if ($discarded) {
     Write-Host "Discarded inherited values for $($discarded.Name -join ', '). Use -More to pass them explicitly."
 }
-$Exe = (Resolve-Path -LiteralPath $Exe).Path
-Push-Location (Join-Path $PSScriptRoot '..')   # victory.toml is looked for here
+$Exe = (Resolve-Path -LiteralPath $Exe).ProviderPath
+if ($WarmCache) {
+    try {
+        & (Join-Path $PSScriptRoot 'warm-cache.ps1') -Exe $Exe -VictoryExe $victory -SkipShaders:$SkipShaders
+    } catch {
+        Write-Warning "Cache warmup could not finish. Launching anyway. $($_.Exception.Message)"
+    }
+}
+Push-Location -LiteralPath (Join-Path $PSScriptRoot '..')   # victory.toml is looked for here
 try {
-    if (-not $SkipShaders) {
+    if (-not $WarmCache -and -not $SkipShaders) {
         $config = & $victory config
         if ($LASTEXITCODE -eq 0) {
             $cache = $config | Select-String '^cache_dir\s*:\s*(.+)$' | Select-Object -First 1
@@ -138,5 +175,69 @@ try {
             }
         }
     }
-    & $victory run $Exe --console $Console --execute
+    if (-not $CaptureLog) {
+        & $victory run $Exe --console $Console --execute
+        return
+    }
+
+    $ErrorActionPreference = 'Stop'
+    $started = Get-Date
+    $size = if ($WindowSize) { $WindowSize } else { 'default-size' }
+    $runName = '{0:yyyyMMdd-HHmmss-fff}-{1}-{2}-{3}' -f $started, $Console, $size, $PID
+    $runDir = Join-Path (Get-Location).ProviderPath "target\play-logs\$runName"
+    [void][IO.Directory]::CreateDirectory($runDir)
+    $bootLog = Join-Path $runDir 'boot.log'
+    $traceLog = Join-Path $runDir 'trace.log'
+    $runInfo = Join-Path $runDir 'run.json'
+
+    $binary = $victory
+    $run = [ordered]@{
+        started_utc = $started.ToUniversalTime().ToString('o')
+        console = $Console
+        window_target = $WindowSize
+        build = if ($VictoryExe) { 'custom' } else { $Build }
+        machine_preset = $Machine
+        binary = $binary
+        binary_sha256 = (Get-FileHash -LiteralPath $binary -Algorithm SHA256 -ErrorAction Stop).Hash
+        game_executable = $Exe
+        victory_env = [ordered]@{}
+    }
+    foreach ($entry in Get-ChildItem Env: | Where-Object Name -like 'VICTORY_*' | Sort-Object Name) {
+        $run.victory_env[$entry.Name] = $entry.Value
+    }
+    [IO.File]::WriteAllText($runInfo, ($run | ConvertTo-Json -Depth 3))
+    Write-Host "Run logs: $runDir"
+
+    # ProcessStartInfo takes a Windows command line. The executable path can contain spaces.
+    $launch = [Diagnostics.ProcessStartInfo]::new($binary, ('run "{0}" --console {1} --execute' -f $Exe, $Console))
+    $launch.WorkingDirectory = (Get-Location).ProviderPath
+    $launch.UseShellExecute = $false
+    $launch.RedirectStandardOutput = $true
+    $launch.RedirectStandardError = $true
+    $launch.EnvironmentVariables['NO_COLOR'] = '1'
+
+    # Stream both pipes concurrently as bytes. A one-byte buffer keeps logs readable during play.
+    $stdout = $null
+    $stderr = $null
+    $process = $null
+    try {
+        $stdout = [IO.FileStream]::new($bootLog, 'CreateNew', 'Write', 'Read', 1, $true)
+        $stderr = [IO.FileStream]::new($traceLog, 'CreateNew', 'Write', 'Read', 1, $true)
+        $process = [Diagnostics.Process]::Start($launch)
+        $bootCopy = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
+        $traceCopy = $process.StandardError.BaseStream.CopyToAsync($stderr)
+        $process.WaitForExit()
+        [void]$bootCopy.GetAwaiter().GetResult()
+        [void]$traceCopy.GetAwaiter().GetResult()
+        $exitCode = $process.ExitCode
+    } finally {
+        if ($process) { $process.Dispose() }
+        if ($stderr) { $stderr.Dispose() }
+        if ($stdout) { $stdout.Dispose() }
+    }
+    $run.finished_utc = [DateTime]::UtcNow.ToString('o')
+    $run.exit_code = $exitCode
+    [IO.File]::WriteAllText($runInfo, ($run | ConvertTo-Json -Depth 3))
+    Write-Host "VIctory exited with code $exitCode. Logs: $runDir"
+    exit $exitCode
 } finally { Pop-Location }

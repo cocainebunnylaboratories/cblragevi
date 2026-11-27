@@ -163,7 +163,12 @@ fn place(
     width: i32,
     height: i32,
 ) -> (Windowed, Option<WindowState>) {
-    let windowed = (ex_style, style, fit(parent, x, y, width, height));
+    let target = if style & wm::WS_CHILD == 0 && ex_style & wm::WS_EX_TOOLWINDOW == 0 {
+        window_size()
+    } else {
+        None
+    };
+    let windowed = (ex_style, style, fit(parent, x, y, width, height, target));
     // SAFETY: plain queries of the primary monitor's size.
     let screen = unsafe { (wm::GetSystemMetrics(wm::SM_CXSCREEN), wm::GetSystemMetrics(wm::SM_CYSCREEN)) };
     let Some(full) = full_screen(ex_style, style, !parent.is_null(), screen) else {
@@ -290,14 +295,25 @@ fn full_screen(ex_style: u32, style: u32, parented: bool, screen: (i32, i32)) ->
 /// A top-level window larger than the work area is shrunk to fit, keeping
 /// its proportions, and centred; what it shows is scaled to it (the swap
 /// chain stretches). `VICTORY_WINDOW_MAX=WIDTHxHEIGHT` applies a smaller
-/// limit without changing the title's render targets.
-fn fit(parent: HWND, x: i32, y: i32, width: i32, height: i32) -> (i32, i32, i32, i32) {
+/// limit. `VICTORY_WINDOW_SIZE=WIDTHxHEIGHT` can also scale up to a target
+/// within those limits. Neither setting changes the title's render targets.
+fn fit(
+    parent: HWND,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    target: Option<(i32, i32)>,
+) -> (i32, i32, i32, i32) {
     let mut area = RECT::default();
     // SAFETY: `area` receives the primary monitor's work area.
     let known =
         unsafe { wm::SystemParametersInfoW(wm::SPI_GETWORKAREA, 0, (&raw mut area).cast(), 0) };
     let limit = window_limit();
-    let fitted = fit_with_limit(&area, width, height, limit);
+    let fitted = match target {
+        Some(target) => fit_to_target(&area, width, height, target, limit),
+        None => fit_with_limit(&area, width, height, limit),
+    };
     if !parent.is_null() || known == 0 || fitted == (width, height) {
         return (x, y, width, height);
     }
@@ -329,6 +345,34 @@ fn window_limit() -> Option<(i32, i32)> {
     })
 }
 
+fn window_size() -> Option<(i32, i32)> {
+    static SIZE: std::sync::OnceLock<Option<(i32, i32)>> = std::sync::OnceLock::new();
+    *SIZE.get_or_init(|| {
+        let value = std::env::var("VICTORY_WINDOW_SIZE").ok()?;
+        let size = parse_window_limit(&value);
+        if size.is_none() {
+            tracing::warn!(value, "ignoring invalid VICTORY_WINDOW_SIZE; expected positive WIDTHxHEIGHT");
+        }
+        size
+    })
+}
+
+fn fit_to_target(
+    area: &RECT,
+    width: i32,
+    height: i32,
+    target: (i32, i32),
+    limit: Option<(i32, i32)>,
+) -> (i32, i32) {
+    let (max_width, max_height) = limit.unwrap_or(target);
+    let aw = (area.right - area.left).min(target.0).min(max_width);
+    let ah = (area.bottom - area.top).min(target.1).min(max_height);
+    if width <= 0 || height <= 0 || aw <= 0 || ah <= 0 {
+        return (width, height);
+    }
+    scale_into(width, height, aw, ah)
+}
+
 fn fit_with_limit(
     area: &RECT,
     width: i32,
@@ -354,6 +398,10 @@ fn fit_into(area: &RECT, width: i32, height: i32) -> (i32, i32) {
     if width <= 0 || height <= 0 || aw <= 0 || ah <= 0 || (width <= aw && height <= ah) {
         return (width, height);
     }
+    scale_into(width, height, aw, ah)
+}
+
+fn scale_into(width: i32, height: i32, aw: i32, ah: i32) -> (i32, i32) {
     let scale = f64::min(
         f64::from(aw) / f64::from(width),
         f64::from(ah) / f64::from(height),
@@ -624,6 +672,20 @@ mod tests {
     use super::*;
 
     extern "system" fn noop(_: u8, _: *mut c_void) {}
+
+    #[test]
+    fn window_target_scales_both_console_sizes_within_the_work_area() {
+        let area = RECT { left: 0, top: 0, right: 5120, bottom: 1440 };
+        let qhd = (2560, 1440);
+        let uhd = (3840, 2160);
+        assert_eq!(fit_to_target(&area, 1920, 1080, qhd, None), qhd);
+        assert_eq!(fit_to_target(&area, 3840, 2160, qhd, None), qhd);
+        assert_eq!(fit_to_target(&area, 3840, 2160, uhd, None), qhd);
+
+        let taller_area = RECT { bottom: 2160, ..area };
+        assert_eq!(fit_to_target(&taller_area, 1920, 1080, uhd, None), uhd);
+        assert_eq!(fit_to_target(&taller_area, 3840, 2160, uhd, Some(qhd)), qhd);
+    }
 
     #[test]
     fn full_screen_switches_both_ways_on_the_window_s_monitor() {
