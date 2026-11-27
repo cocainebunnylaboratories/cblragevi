@@ -132,10 +132,8 @@ if (-not $Exe -and $WindowSize) {
         if ($LASTEXITCODE -ne 0) { throw 'Could not read the VIctory configuration.' }
         $gameDir = $config | Select-String '^game_dir\s*:\s*(.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value }
         if ($gameDir -and (Test-Path -LiteralPath $gameDir -PathType Container)) {
-            $candidate = Join-Path $gameDir 'game_scarlett_master.exe'
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                $Exe = (Resolve-Path -LiteralPath $candidate).ProviderPath
-            }
+            $candidates = @(Get-ChildItem -LiteralPath $gameDir -Filter '*.exe' -File)
+            if ($candidates.Count -eq 1) { $Exe = $candidates[0].FullName }
         }
     } finally { Pop-Location }
 }
