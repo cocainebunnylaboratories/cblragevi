@@ -10,6 +10,8 @@ The longest recorded session is **72 min 53 s** using the **Xbox Series X profil
 
 The 72:53 endurance run used reference source `2fb36ee1`, which also supplies the runtime on `main`. The separate **11:24** and **19:41** Series X 1440p replays used the combined build from `vice-tay-5080-tuning` at `0c6b941c`. The combined replays showed less CPU preparation in the heavier draw band, with mixed FPS results. [Endurance reference source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/2fb36ee1) · [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c) · [Combined replay results](results.md#combined-build--xbox-series-x-at-1440p--28-november-2026)
 
+The combined build also ran at **Xbox Series S 1080p (1920×1080 game output)**. The **29:29** Prison V1 run measured **17.25 FPS median** across qualifying gameplay reports, and the **2:42** Jason slot 2 replay measured **16.9 FPS median**. Both exited cleanly. The player saw less magenta tint on Series S, and little on Series X in the recent checks. [Series S results](results.md#combined-build--xbox-series-s-at-1080p--28-november-2026)
+
 ## Build and launch
 
 Use `vice-tay-5080-tuning` for the scripts, build commands and tuning settings below. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/5080-tuning.md#open-world-performance-replay)

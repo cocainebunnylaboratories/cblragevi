@@ -44,6 +44,22 @@ Both combined replays used the **Xbox Series X profile at verified 1440p (2560×
 
 The comparison uses complete reports between 15 and 1,110 seconds after the first recorded diffuse ambient resolve in each run. CPU preparation was **12.3 ms/frame lower** in the heavier draw band. The FPS results varied by band, and the scenes and streaming workload differed. This comparison does not establish a sustained FPS gain or isolate the effect of an individual patch. The 95-second capture in the longer run included a **151.55 ms** page-mapping call, which warrants a closer look at the wait and mapping work inside that call. The 72:53 endurance reference remains the longest recorded session.
 
+## Combined build · Xbox Series S at 1080p · 28 November 2026
+
+Both completed runs used the **Xbox Series S profile at verified 1080p (1920×1080 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. They ran the combined build from `vice-tay-5080-tuning` at `0c6b941c`, with the `5080` preset and frame generation off. That build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local tuning changes. Both runs recorded the corrected diffuse ambient lighting pass, completed their 75- and 95-second captures with zero lost events, and exited with code 0. The two abandoned attempts were excluded. [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+
+| Measurement | Prison V1 | Jason slot 2 |
+| --- | ---: | ---: |
+| Process uptime | 29:29 | 2:42 |
+| Median FPS at 1,000 or more draws/frame | **17.25** | **16.9** |
+| Median FPS at 6,000–8,999 draws/frame, zero pipelines pending | 15.9 (27 reports) | 15.5 (9 reports) |
+| Gameplay reports at 20 FPS or higher | 26 of 226 | 5 of 19 |
+| Highest qualifying report | 25.9 FPS | 23.6 FPS |
+
+The FPS figures use complete reports of roughly five seconds starting at least 15 seconds after the first recorded diffuse ambient resolve. In the overlapping opening window, from 15 to 1,110 seconds after the resolve, the combined build measured **17.45 FPS median at Series S 1080p** across 132 reports and **14.7 FPS at Series X 1440p** across 200 reports, using the same 1,000-draw threshold. The console profile, output resolution and scene workload differed.
+
+The player reported that magenta tint was less evident on Series S. Little tint was visible in the recent Series X checks either. Earlier Prison V1 observations still describe intermittent tint in particular scenes.
+
 ## Jason slot 2 · 28 November 2026
 
 The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440p (2560×1440 game output), and the larger Windows page file. The two candidate builds each applied one patch to that pin.
@@ -53,7 +69,7 @@ The warmed reference used Vice-Tay `a9612459`, the Xbox Series X profile at 1440
 | Local one-pass refresh planner | Planning spans fell from 1.83 to 0.48 ms/frame at 75 seconds and from 0.73 to 0.40 ms/frame at 95 seconds. In the 8,000–8,999 draw band with zero pipelines pending, median FPS was 14.4 on the reference and 14.3 on the candidate. |
 | Vice-Tay PR #285, by Petr Seifert | From 75 to 150 seconds, log records attributing fill waits to placed copies fell from 70 to zero. In the 6,000–8,999 draw band with zero pipelines pending, median frame time went from 68.0 to 63.9 ms (14.7 to 15.65 FPS) across 10 and 8 reports. The candidate drew less in that band. |
 
-Both candidates exited cleanly. The one-pass planner removes measured CPU work, and #285 reduced the targeted waits on this route. The Series X endurance run is recorded above. The corresponding Series S 1080p check is pending. [Run IDs, settings and source revisions](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/28386207/docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november) · [Petr Seifert’s upstream patch](https://github.com/TaynanGT/Vice-Tay/pull/285)
+Both candidates exited cleanly. The one-pass planner removes measured CPU work, and #285 reduced the targeted waits on this route. The Series X endurance run is recorded above. The completed [Series S 1080p checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) are recorded above. [Run IDs, settings and source revisions](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/28386207/docs/cbl/vice-tay-1440p-tuning.md#jason-slot-2-candidates-28-november) · [Petr Seifert’s upstream patch](https://github.com/TaynanGT/Vice-Tay/pull/285)
 
 ## Series X at 1440p · 27 November 2026
 
@@ -75,7 +91,7 @@ Each gameplay report spans roughly five seconds. The candidate was reported to f
 
 ### Visual status
 
-Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on Jason slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The result applies to the scenes checked. The Prison V1 section records the artifacts seen during the endurance run. The Series S visual check is pending. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks) · [Visual run logs and provenance](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/28386207/docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
+Vice-Tay’s renderer cleared the blocky surfaces and unusually white water reflections seen in earlier runs. On 28 November, the player checked Taynan Piza’s #206 twice at Series X 1440p on Jason slot 2, using the pinned build with Petr Seifert’s #285. In both checks, the player saw no magenta tint and the broad areas of almost-black shade cleared. Shadows still looked very dark where there was little light. Both traces confirm that VIctory selected the matching depth plane and recorded the diffuse ambient lighting pass. The result applies to the scenes checked. The Prison V1 section records the artifacts seen during the endurance run. The [Series S checks](#combined-build--xbox-series-s-at-1080p--28-november-2026) showed less visible tint. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks) · [Visual run logs and provenance](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/28386207/docs/cbl/vice-tay-1440p-tuning.md#visual-checks-with-pr-206) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
 ### Tuning decisions
 
