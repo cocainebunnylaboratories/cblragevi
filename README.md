@@ -8,6 +8,8 @@ The earlier gameplay samples reached **roughly 12–15 FPS using the Xbox Series
 
 The longest recorded session is **72 min 53 s** using the **Xbox Series X profile at verified 1440p (2560×1440 game output)**. The manual Prison V1 playthrough went from Lucia in prison through Chapter 1 and Jason free roam, followed by an idle check, a manual save and a clean exit. The median of the gameplay and cutscene reports before idle was **14.5 FPS**. The default branch builds the endurance reference source at `2fb36ee1`, including Petr Seifert’s #285 and Taynan Piza’s #206. The `vice-tay-5080-tuning` branch layers our local optimizations onto that reference. The performance target is **25 FPS (40 ms/frame)**. [Run history and credits](results.md#prison-v1-endurance--28-november-2026)
 
+The combined build also ran at **Xbox Series S 1080p (1920×1080 game output)**. The **29:29** Prison V1 run measured **17.25 FPS median** across qualifying gameplay reports, and the **2:42** Jason slot 2 replay measured **16.9 FPS median**. Both exited cleanly. The player saw less magenta tint on Series S, and little on Series X in the recent checks. [Series S results](results.md#combined-build--xbox-series-s-at-1080p--28-november-2026)
+
 ## Build and launch
 
 Build from `main` for the endurance reference. Use the explicit `-Machine 5080` replay command below for the recorded configuration. For the earlier `5080-tuning` branch, use the slot 2 replay with its `RangeWater` profile. [4K replay procedure](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/docs/cbl/5080-tuning.md#open-world-performance-replay)
