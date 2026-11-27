@@ -20,7 +20,7 @@ The tested source is `2fb36ee1`, based on Vice-Tay `a9612459`. It includes Petr 
 
 Both completed runs used the **Xbox Series S profile at verified 1080p (1920×1080 windowed game output)** on the RTX 5080 and Ryzen 9 9950X3D. They ran the combined build from `vice-tay-5080-tuning` at `0c6b941c`, with the `5080` preset and frame generation off. That build includes Petr Seifert’s #285 and Taynan Piza’s #206 alongside the local tuning changes. Both runs recorded the corrected diffuse ambient lighting pass, completed their 75- and 95-second captures with zero lost events, and exited with code 0. The two abandoned attempts were excluded. [Combined build source](https://github.com/cocainebunnylaboratories/cblvictoryvi/tree/0c6b941c0222dc65f7c6fd461fb62b0c48d9e5a8) · [Vice-Tay PR #285](https://github.com/TaynanGT/Vice-Tay/pull/285) · [Vice-Tay PR #206](https://github.com/TaynanGT/Vice-Tay/pull/206)
 
-| Measurement | Prison V1 | Jason slot 2 |
+| Measurement | Prison V1 | Open-world slot 2 |
 | --- | ---: | ---: |
 | Process uptime | 29:29 | 2:42 |
 | Median FPS at 1,000 or more draws/frame | **17.25** | **16.9** |
