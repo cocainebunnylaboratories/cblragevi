@@ -18,6 +18,10 @@ The reference was built from Vice-Tay `a9612459`. The candidate used that same s
 
 Each gameplay report spans roughly five seconds. The candidate was reported to feel smoother, and the 75-second capture contained fewer long mapping calls. The five-frame captures differ in streaming workload and pipeline activity, and the spans include Windows operations and waits. Sustained FPS was roughly flat in the draw-count bands. The candidate is retained for future comparison, with its effect on hitches pending replication. Series S at 1080p launched and exited cleanly. Two Series S 1440p runs hit a breakpoint before the first present, so the short 1080p run is a compatibility result.
 
+### Visual status
+
+With Vice-Tay’s renderer, we no longer see the blocky surfaces or unusually white water reflections reported in earlier runs. Shadows can still look almost black at times, and some models occasionally show a magenta tint. [Earlier visual observations](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/000af0f5/results.md#what-still-breaks)
+
 ### Tuning decisions
 
 | Trial | Outcome |

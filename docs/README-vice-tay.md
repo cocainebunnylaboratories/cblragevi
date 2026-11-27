@@ -1,3 +1,5 @@
+> **CBL playtest update · 27 November 2026.** With Vice-Tay’s renderer, we no longer see the blocky surfaces or unusually white water reflections reported in earlier runs. Shadows can still look almost black at times, and some models occasionally show a magenta tint. The upstream README below records its original test results. [Current visual status](../results.md#visual-status)
+
 # Vice-Tay
 
 Vice-Tay runs an Xbox Series title natively on Windows, from files you supply,
