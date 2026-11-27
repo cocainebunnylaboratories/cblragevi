@@ -11,7 +11,7 @@ Use slot 2, the 20:34:09 Sydney manual save, for new streaming and frame-time co
    ```powershell
    $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
    $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
-   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-jason-slot2-20261126-203409'
+   $save = 'C:\path\to\save-backups\slot-2-snapshot'
    & $launch RangeWater $save
    ```
 
@@ -50,7 +50,7 @@ Kelvaroq’s 0062 and 0063 patches change guest address translation, mapping lif
    ```powershell
    $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
    $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
-   $save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
+   $save = 'C:\path\to\save-backups\prison-v1'
    & $launch Tuning5080 $save
    ```
 
@@ -79,7 +79,7 @@ From the main checkout in Windows PowerShell:
 ```powershell
 $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
 $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
-$save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\prison-v1'
+$save = 'C:\path\to\save-backups\prison-v1'
 & $launch Submission5080 $save
 ```
 
@@ -128,7 +128,7 @@ Stage 4 targets slow frames and some unnecessary serialization. If the present e
 
 ### Tracker review · 26 November, 10:11 UTC
 
-The standings snapshot still shows the previous CBL results. Vice-Tay's new 56-minute result uses the smaller console profile and averages minute medians. It is useful progression evidence and a different workload from our Series X city replay. VIctory-7900XTX's newer report says 13–17 FPS in a street scene on the larger profile. The GPU, camera route and measured conditions differ. Kelvaroq remains the closest published hardware comparison at 4K output on an RTX 5080. These measurements motivate the patch reviews above. Preserve the visual checks and judge gains against the slot 2 control. [Tracker standings](https://vuyp.github.io/gta6-pc-race/#standings) · [VIctory-7900XTX findings](https://github.com/avatarmanz/VIctory-7900XTX/blob/main/docs/findings.md)
+The standings snapshot still shows the previous CBL results. Vice-Tay's new 56-minute result uses the smaller console profile and averages minute medians. It is useful progression evidence and a different workload from our Series X city replay. VIctory-7900XTX's newer report says 13–17 FPS in a street scene on the larger profile. The GPU, camera route and measured conditions differ. Kelvaroq remains the closest published hardware comparison at 4K output on an RTX 5080. These measurements motivate the patch reviews above. Preserve the visual checks and judge gains against the slot 2 control. [VIctory-7900XTX findings](https://github.com/avatarmanz/VIctory-7900XTX/blob/main/docs/findings.md)
 
 ## Phase 5 · Reduce buffer copies
 
@@ -146,7 +146,7 @@ Prototype a limited backing-memory fast path only after checking aliasing, write
 
 ### Standings checked 26 November 2026 at 11:54 UTC
 
-CBL ranked 17th, stage 6, with the older 27m 38s run. The local ledger includes a 65m 46s manually closed run and a separate 4.49 FPS marked street sample. Use each result with its own duration and workload. [Standings](https://vuyp.github.io/gta6-pc-race/#standings) · [CBL results](../../results.md)
+CBL ranked 17th, stage 6, with the older 27m 38s run. The local ledger includes a 65m 46s manually closed run and a separate 4.49 FPS marked street sample. Use each result with its own duration and workload. [CBL results](../../results.md)
 
 | Project | Published result | What to carry into Phase 5 |
 | --- | --- | --- |

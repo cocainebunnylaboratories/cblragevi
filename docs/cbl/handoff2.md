@@ -12,7 +12,7 @@ Staged executable under the tuning worktree: `target/diag/examples/fps-candidate
 
 ## Where to start
 
-Use branch `5080-tuning`. On the test PC, the main checkout is `C:\Users\isuru\Documents\cbl\cblragevi` and its linked tuning worktree is `target/diag/examples/overnight-5080-worktree`. Renderer and launcher commit `91211f60` produced the mesh candidate. The mesh trial notes and ledger were preserved in commit `f4bef73b`. The owner handles pushes. For another machine, transfer the working notes and verify the source revision is available there. The staged binaries, logs, captures, save backups and machine-specific `victory.toml` are local artifacts.
+Use branch `5080-tuning`. On the test PC, the main checkout is `C:\path\to\checkout` and its linked tuning worktree is `target/diag/examples/overnight-5080-worktree`. Renderer and launcher commit `91211f60` produced the mesh candidate. The mesh trial notes and ledger were preserved in commit `f4bef73b`. The owner handles pushes. For another machine, transfer the working notes and verify the source revision is available there. The staged binaries, logs, captures, save backups and machine-specific `victory.toml` are local artifacts.
 
 | Profile | When to use it | Staged executable inside the tuning worktree |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ Evidence is under `target/diag/examples` **inside the tuning worktree**. Use `fp
 
 ## How to read the tracker
 
-At the **27 November 00:18 Sydney** snapshot, CBL ranked 10th at stage 6 with picture 2/5, speed 3/6 and stability 4/4. The following numbers are donor-reported and use different scenes and profiles. The ledger includes source revisions and links for all seven projects. [Tracker](https://vuyp.github.io/gta6-pc-race/#standings) · [Pinned donor research and credits](run-ledger-2026-11-26.md#27-november-tracker-and-donor-review)
+At the **27 November 00:18 Sydney** snapshot, CBL ranked 10th at stage 6 with picture 2/5, speed 3/6 and stability 4/4. The following numbers are donor-reported and use different scenes and profiles. The ledger includes source revisions and links for all seven projects. [Pinned donor research and credits](run-ledger-2026-11-26.md#27-november-tracker-and-donor-review)
 
 | Project | Evidence relevant to the decision |
 | --- | --- |
@@ -62,10 +62,10 @@ At the **27 November 00:18 Sydney** snapshot, CBL ranked 10th at stage 6 with pi
 From **Windows PowerShell on the test PC**, run the existing control with the following commands. The player loads manual slot 2, jogs from Jason's house to the stop sign, notes title-bar uptimes at both ends and captures the scene. The launcher copies the external backup to a timestamped replay. Warm each mode once on that route, close normally between runs, then measure both modes on the same build. Ordinary same-build profiles share the persistent cache. Compare a promising result in reverse order.
 
 ```powershell
-cd 'C:\Users\isuru\Documents\cbl\cblragevi'
+cd 'C:\path\to\checkout'
 $env:VICTORY_CONFIG = (Resolve-Path .\victory.toml).Path
 $launch = '.\target\diag\examples\overnight-5080-worktree\scripts\run_diag_fps.cmd'
-$save = 'C:\Users\isuru\Documents\cbl\gtavi\saves\rangewater-jason-slot2-20261126-203409'
+$save = 'C:\path\to\save-backups\slot-2-snapshot'
 & $launch MeshControl $save
 ```
 

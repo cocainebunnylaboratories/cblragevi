@@ -17,14 +17,18 @@ if ($PerfCase -and ($Mode -ne 'Default' -or !$SaveLocation)) {
     throw 'An FPS comparison requires Default mode and a save backup.'
 }
 if ($PSBoundParameters.ContainsKey('SaveLocation')) {
-    $titleId = '7952987A'
     $source = Get-Item -LiteralPath $SaveLocation
     if ($source -isnot [System.IO.DirectoryInfo]) {
         throw "Save location must be a directory: $SaveLocation"
     }
-    if ($source.Name -ne $titleId) {
-        $source = Get-Item -LiteralPath (Join-Path $source.FullName $titleId)
+    if ($source.Name -notmatch '^[A-F0-9]{8}$') {
+        $titles = @(Get-ChildItem -LiteralPath $source.FullName -Directory |
+            Where-Object { $_.Name -match '^[A-F0-9]{8}$' -and
+                (Test-Path -LiteralPath (Join-Path $_.FullName 'saves') -PathType Container) })
+        if ($titles.Count -ne 1) { throw 'Expected one title directory containing saves.' }
+        $source = $titles[0]
     }
+    $titleId = $source.Name.ToUpperInvariant()
     if ($source -isnot [System.IO.DirectoryInfo] -or
         !(Test-Path -LiteralPath (Join-Path $source.FullName 'saves') -PathType Container)) {
         throw "Expected a $titleId directory containing a saves folder: $SaveLocation"
@@ -104,9 +108,13 @@ $dir = $line -replace '^game_dir\s*:\s*', ''
 if (!$dir -or !(Test-Path -LiteralPath $dir -PathType Container)) {
     throw 'Set game_dir in victory.toml or set VICTORY_GAME_DIR to the title directory.'
 }
-$game = Join-Path $dir 'game_scarlett_master.exe'
-if (!(Test-Path -LiteralPath $game -PathType Leaf)) {
-    throw "Missing title executable at $game"
+$game = $env:VICTORY_TITLE_EXE
+if (-not $game) {
+    $candidates = @(Get-ChildItem -LiteralPath $dir -Filter '*.exe' -File)
+    if ($candidates.Count -eq 1) { $game = $candidates[0].FullName }
+}
+if (-not $game -or -not (Test-Path -LiteralPath $game -PathType Leaf)) {
+    throw 'Set VICTORY_TITLE_EXE to your title executable.'
 }
 
 $prefix = 'rtx5080'

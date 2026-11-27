@@ -33,7 +33,7 @@ For a prison capture, choose **Continue**, wait until you have control in the ce
 Replace the example path with the executable in your game directory. VIctory writes the startup summary to stdout and tracing to stderr. The pipeline combines both streams, displays them in the terminal, and saves them to `%TEMP%\victory-diag.log`. Each run overwrites that file.
 
 ```powershell
-$game = 'D:\Titles\TestTitle\game_scarlett_master.exe'
+$game = 'D:\Titles\TestTitle\Title.exe'
 $env:VICTORY_LOG = 'info'
 .\target\diag\victory.exe run $game --execute 2>&1 |
     Tee-Object -FilePath "$env:TEMP\victory-diag.log"
@@ -57,8 +57,8 @@ try {
 
 ## Locate crash reports
 
-Both release and diagnostic builds append recorded crashes and host GPU failures to `crashes.log` under the title ID in the configured data directory. For title ID `7952987A` with the default data directory, read the latest entries with the command below. The file can be absent after a blank-screen run if VIctory recorded no crash or GPU failure.
+Both release and diagnostic builds append recorded crashes and host GPU failures to `crashes.log` under the title ID in the configured data directory. For title ID `<title-id>` with the default data directory, read the latest entries with the command below. The file can be absent after a blank-screen run if VIctory recorded no crash or GPU failure.
 
 ```powershell
-Get-Content "$env:LOCALAPPDATA\victory\data\7952987A\crashes.log" -Tail 80
+Get-Content "$env:LOCALAPPDATA\victory\data\<title-id>\crashes.log" -Tail 80
 ```
