@@ -2,15 +2,24 @@
 
 **Xbox Series compatibility on Windows, tuned on a GeForce RTX 4090.**
 
-Vice-Tay builds on [VIctory](https://github.com/Marvisak/VIctory) to run an Xbox Series title from your own files. The title's x86-64 code runs on the host CPU. The compatibility layer provides the console APIs it calls and translates its graphics work to Direct3D 12.
+Vice-Tay builds on [VIctory](https://github.com/Marvisak/VIctory) to run an Xbox Series title from your own files. The title's x86-64 code runs on the host CPU. The compatibility layer provides the console APIs it calls and translates its graphics work to Direct3D 12. This branch’s documentation and source omit the game’s name.
 
 [Quick start](#getting-started) · [Gameplay](#gameplay) · [Measurements](#measurements) · [Benchmark dashboard](https://taynangt.github.io/Vice-Tay/)
 
 ## CBL VIctory endurance reference
 
+CBL VIctory is an independently maintained Windows compatibility layer for Xbox Series titles. It started from Marvisak’s VIctory and uses Vice-Tay’s Direct3D 12 renderer. `main` is the default branch and home for the project’s benchmark results and endurance reference. The `vice-tay-5080-tuning` branch contains CBL’s current RTX 5080 tuning, and `5080-tuning` records the earlier 4K experiments. This branch preserves the CBL endurance reference alongside the Vice-Tay documentation below.
+
+The combined build completed two runs on each Xbox Series profile on an RTX 5080 and Ryzen 9 9950X3D. All four exited cleanly.
+
+| Console profile | Verified game output | Combined build results |
+| --- | --- | --- |
+| Xbox Series X | 1440p (2560×1440) | **11:24** and **19:41**. The longer run measured **14.7 FPS median** across reports with at least 1,000 draws per frame. [Series X results](https://github.com/cocainebunnylaboratories/cblvictoryvi/blob/main/results.md#combined-build--xbox-series-x-at-1440p--28-november-2026) |
+| Xbox Series S | 1080p (1920×1080) | **29:29 at 17.25 FPS median** and **2:42 at 16.9 FPS median**, using the same draw threshold. [Series S results](results.md#combined-build--xbox-series-s-at-1080p--28-november-2026) |
+
 CBL VIctory's Prison V1 playthrough used this reference source with the **Xbox Series X profile at verified 1440p (2560×1440 game output)** on an RTX 5080. The process ran for **72 min 53 s** and exited cleanly after a manual save. The Series S measurements below are from Vice-Tay's earlier tests. [CBL endurance results](results.md)
 
-The combined build also ran at **Xbox Series S 1080p (1920×1080 game output)**. The **29:29** Prison V1 run measured **17.25 FPS median** across qualifying gameplay reports, and the **2:42** Jason slot 2 replay measured **16.9 FPS median**. Both exited cleanly. The player saw less magenta tint on Series S, and little on Series X in the recent checks. [Series S results](results.md#combined-build--xbox-series-s-at-1080p--28-november-2026)
+The player saw less magenta tint on Series S, and little on Series X in the recent checks.
 
 ## Measurements
 
