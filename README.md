@@ -6,6 +6,10 @@ Vice-Tay builds on [VIctory](https://github.com/Marvisak/VIctory) to run an Xbox
 
 [Quick start](#getting-started) · [Gameplay](#gameplay) · [Measurements](#measurements) · [Benchmark dashboard](https://taynangt.github.io/Vice-Tay/)
 
+## CBL VIctory endurance reference
+
+CBL VIctory's Prison V1 playthrough used this reference source with the **Xbox Series X profile at verified 1440p (2560×1440 game output)** on an RTX 5080. The process ran for **72 min 53 s** and exited cleanly after a manual save. The Series S measurements below are from Vice-Tay's earlier tests. [CBL endurance results](results.md)
+
 ## Measurements
 
 The goal is **30 rendered FPS in the open world with correct visuals**. Both sessions used the Series S profile.
